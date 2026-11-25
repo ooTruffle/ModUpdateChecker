@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "${mod_id}",
+  "version": "${mod_version}",
+  "name": "${mod_name}",
+  "description": "${mod_description}",
+  "authors": [
+    "ooTruffle"
+  ],
+  "contact": {
+    "sources": "https://github.com/ooTruffle/ModUpdateChecker",
+    "issues": "https://github.com/ooTruffle/ModUpdateChecker/issues"
+  },
+  "custom": {
+    "modupdatechecker": {
+      "github": "ooTruffle/ModUpdateChecker"
+    }
+  },
+  "environment": "client",
+  "entrypoints": {
+    "init": [
+      "${base_group}.ModUpdateChecker"
+    ]
+  },
+  "mixins": [
+    "mixins.${mod_id}.json"
+  ],
+  "depends": {
+    "java": ">=${java_version}",
+    "minecraft": "${minecraft_version}",
+    "fabricloader": ">=${fabric_loader_version}",
+    "osl-entrypoints": "*",
+    "polycompose": ">=3.0.0"
+  },
+  "suggests": {
+    "oneconfig": ">=1.9.0"
+  }
+}
