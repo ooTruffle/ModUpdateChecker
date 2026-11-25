@@ -1,5 +1,6 @@
 package com.ootruffle.modupdatechecker.prelaunch;
 
+import com.ootruffle.modupdatechecker.Config;
 import com.ootruffle.modupdatechecker.ModStatus;
 import com.ootruffle.modupdatechecker.UpdateChecker;
 import com.ootruffle.modupdatechecker.install.Installer;
@@ -320,6 +321,12 @@ final class PrelaunchGui {
             right.setOpaque(false);
             status = label(downloadable ? "" : "No file to download", TEXT_SECONDARY, font(Font.PLAIN, 12f));
             right.add(status);
+            ignore = button("Ignore", false);
+            ignore.setFont(font(Font.PLAIN, 12f));
+            ignore.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+            ignore.setToolTipText("Skip " + mod.latestVersion + "; a newer version shows again");
+            ignore.addActionListener(e -> ignore());
+            right.add(ignore);
             if (mod.pageUrl != null) {
                 final JButton open = button("Open", false);
                 open.setFont(font(Font.PLAIN, 12f));
@@ -329,8 +336,31 @@ final class PrelaunchGui {
             }
             card.add(right, BorderLayout.EAST);
 
+            this.card = card;
+            gap = Box.createVerticalStrut(8);
             list.add(card);
-            list.add(Box.createVerticalStrut(8));
+            list.add(gap);
+        }
+
+        private final JPanel card;
+        private final Component gap;
+        private final JButton ignore;
+
+        /** Skips this version (the same list the in-game screen uses) and takes the row away. */
+        private void ignore() {
+            if (installing) return;
+            Config.get().ignoredVersions.put(mod.id, mod.latestVersion);
+            Config.save();
+            System.out.println("[ModUpdateChecker]   Ignoring " + mod.name + " " + mod.latestVersion);
+            list.remove(card);
+            list.remove(gap);
+            rows.remove(this);
+            list.revalidate();
+            list.repaint();
+            refreshButton();
+            if (rows.isEmpty()) {
+                subtitle.setText("Nothing left to update.");
+            }
         }
 
         void setStatus(String text, Color color) {
@@ -378,9 +408,16 @@ final class PrelaunchGui {
                 subtitle.setForeground(YELLOW);
                 return;
             }
-            if (updates.isEmpty()) {
+            int installable = 0;
+            for (ModStatus m : updates) if (m.canDownload()) installable++;
+            if (installable == 0) {
+                // Nothing that can be installed from here: don't hold the launch up. Updates without
+                // a file still go to the launcher's log.
+                for (ModStatus m : updates) {
+                    System.out.println("[ModUpdateChecker]   " + m.name + " " + m.version + " -> " + m.latestVersion
+                            + ": no file to download, get it from " + m.pageUrl);
+                }
                 subtitle.setText(UpdateChecker.summary() + ". Launching...");
-                // Nothing to choose: don't hold the launch up.
                 final Timer t = new Timer(900, e -> finish());
                 t.setRepeats(false);
                 t.start();
@@ -404,7 +441,12 @@ final class PrelaunchGui {
         if (dir == null) return;
         final Timer t = new Timer(700, e -> {
             snapshot(dir, "gui-list.png");
-            if ("quit".equals(System.getenv("MODUPDATECHECKER_GUI_AUTO"))) {
+            if ("ignore".equals(System.getenv("MODUPDATECHECKER_GUI_AUTO"))) {
+                // Ignores the first row, pictures the result, then launches without updating.
+                if (!rows.isEmpty()) rows.get(0).ignore.doClick();
+                snapshot(dir, "gui-ignored.png");
+                skipButton.doClick();
+            } else if ("quit".equals(System.getenv("MODUPDATECHECKER_GUI_AUTO"))) {
                 quitButton.doClick();
             } else if ("update".equals(System.getenv("MODUPDATECHECKER_GUI_AUTO"))) {
                 installSelected();
@@ -446,6 +488,7 @@ final class PrelaunchGui {
         final List<Row> chosen = new ArrayList<>();
         for (Row r : rows) {
             r.box.setEnabled(false);
+            r.ignore.setEnabled(false);
             if (r.box.isSelected()) chosen.add(r);
         }
         final Thread t = new Thread(() -> {

@@ -4,6 +4,7 @@ import com.ootruffle.modupdatechecker.Config;
 import com.ootruffle.modupdatechecker.ModStatus;
 import com.ootruffle.modupdatechecker.core.Env;
 import com.ootruffle.modupdatechecker.core.JarScanner;
+import com.ootruffle.modupdatechecker.core.Versions;
 import com.ootruffle.modupdatechecker.UpdateChecker;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -138,6 +139,7 @@ public final class Installer {
             return false;
         }
         try {
+            checkTarget(mod.jar, mod.jar.resolveSibling(safeName(mod.downloadName)), mod.id);
             final Path staged = fetch(mod);
             Applier.apply(staged, mod.jar, mod.jar.resolveSibling(safeName(mod.downloadName)));
             mod.state = ModStatus.State.DOWNLOADED;
@@ -145,6 +147,25 @@ public final class Installer {
         } catch (Exception e) {
             mod.error = "Update failed: " + e.getMessage();
             return false;
+        }
+    }
+
+    /**
+     * Makes sure installing over [newJar] can't replace a different mod: a file of that name that
+     * isn't [oldJar] must be the same mod (a leftover copy), or it's refused.
+     */
+    static void checkTarget(Path oldJar, Path newJar, String modId) throws java.io.IOException {
+        if (!Files.exists(newJar) || Files.isSameFile(newJar, oldJar)) return;
+        String other;
+        try {
+            final ModStatus read = JarScanner.read(newJar);
+            other = read == null ? null : read.id;
+        } catch (Exception e) {
+            other = null;
+        }
+        if (modId == null || !modId.equals(other)) {
+            throw new java.io.IOException("it would replace " + newJar.getFileName()
+                    + (other == null ? ", which isn't this mod" : ", which is a different mod (" + other + ")"));
         }
     }
 
@@ -160,6 +181,7 @@ public final class Installer {
 
     private static void download(ModStatus mod) throws Exception {
         final String name = safeName(mod.downloadName);
+        checkTarget(mod.jar, mod.jar.resolveSibling(name), mod.id); // Before downloading anything.
         final Path staged = fetch(mod);
         final Path newJar = mod.jar.resolveSibling(name);
         synchronized (pending) {
@@ -237,6 +259,11 @@ public final class Installer {
         }
         if (!expectedId.equals(read.id)) {
             throw new Exception("the download is a different mod (" + read.id + ", not " + expectedId + ")");
+        }
+        // A release for another Minecraft version would crash the game on its next launch.
+        final Object mc = JarScanner.minecraftDependency(jar);
+        if (!Versions.matches(Env.minecraftVersion, mc)) {
+            throw new Exception("the download is for Minecraft " + mc + ", not " + Env.minecraftVersion);
         }
     }
 

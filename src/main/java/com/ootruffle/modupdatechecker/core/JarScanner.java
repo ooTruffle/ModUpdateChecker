@@ -51,6 +51,20 @@ public final class JarScanner {
         return list;
     }
 
+    /**
+     * The Minecraft versions [jar] says it needs ({@code depends.minecraft} in its fabric.mod.json:
+     * a string or a list of strings), or null if it doesn't say.
+     */
+    public static Object minecraftDependency(Path jar) throws Exception {
+        try (ZipFile zip = new ZipFile(jar.toFile())) {
+            final ZipEntry entry = zip.getEntry("fabric.mod.json");
+            if (entry == null) return null;
+            try (InputStream in = zip.getInputStream(entry)) {
+                return Json.obj(Json.obj(Json.parse(new String(in.readAllBytes(), StandardCharsets.UTF_8))), "depends").get("minecraft");
+            }
+        }
+    }
+
     /** The mod in [jar], or null if it isn't a Fabric/Ornithe mod. */
     public static ModStatus read(Path jar) throws Exception {
         try (ZipFile zip = new ZipFile(jar.toFile())) {

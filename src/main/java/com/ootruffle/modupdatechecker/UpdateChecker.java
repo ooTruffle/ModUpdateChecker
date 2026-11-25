@@ -202,12 +202,23 @@ public final class UpdateChecker {
         final Map<String, Object> current = Json.obj(Json.parse(post(MODRINTH + "/version_files", lookup)));
         if (current.isEmpty()) return;
 
-        final Map<String, Object> query = new LinkedHashMap<>();
-        query.put("hashes", new ArrayList<>(current.keySet()));
-        query.put("algorithm", "sha1");
-        query.put("loaders", List.of("ornithe", "fabric", "legacy-fabric"));
-        query.put("game_versions", List.of(Env.minecraftVersion));
-        final Map<String, Object> latest = Json.obj(Json.parse(post(MODRINTH + "/version_files/update", query)));
+        // Only look for updates on the loader the installed version was made for: Ornithe can't run
+        // Legacy Fabric mods (and the other way round), so a mod that moved loaders mustn't be
+        // "updated" onto the wrong one. One request per loader group (usually just one).
+        final Map<List<String>, List<String>> byLoaders = new LinkedHashMap<>();
+        for (String hash : current.keySet()) {
+            final List<String> loaders = loadersFor(Json.arr(Json.obj(current, hash), "loaders"));
+            if (!loaders.isEmpty()) byLoaders.computeIfAbsent(loaders, k -> new ArrayList<>()).add(hash);
+        }
+        final Map<String, Object> latest = new LinkedHashMap<>();
+        for (Map.Entry<List<String>, List<String>> group : byLoaders.entrySet()) {
+            final Map<String, Object> query = new LinkedHashMap<>();
+            query.put("hashes", group.getValue());
+            query.put("algorithm", "sha1");
+            query.put("loaders", group.getKey());
+            query.put("game_versions", List.of(Env.minecraftVersion));
+            latest.putAll(Json.obj(Json.parse(post(MODRINTH + "/version_files/update", query))));
+        }
 
         for (String hash : current.keySet()) {
             final ModStatus m = byHash.get(hash);
@@ -245,6 +256,20 @@ public final class UpdateChecker {
             }
             m.state = ModStatus.State.UPDATE_AVAILABLE;
         }
+    }
+
+    /**
+     * The loaders to look for updates on, from the installed version's: just Ornithe for an
+     * Ornithe build (even one also tagged Fabric), otherwise whichever of Fabric and Legacy Fabric
+     * it was tagged with. Empty for anything else (a Forge jar, say), which isn't checked.
+     */
+    static List<String> loadersFor(List<Object> installed) {
+        final List<String> tags = new ArrayList<>();
+        for (Object o : installed) if (o instanceof String s) tags.add(s.toLowerCase(Locale.ROOT));
+        if (tags.contains("ornithe")) return List.of("ornithe");
+        final List<String> out = new ArrayList<>();
+        for (String l : List.of("fabric", "legacy-fabric")) if (tags.contains(l)) out.add(l);
+        return out;
     }
 
     private static Map<String, Object> primaryFile(List<Object> files) {

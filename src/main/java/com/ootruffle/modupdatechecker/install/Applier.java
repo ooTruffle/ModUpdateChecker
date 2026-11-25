@@ -68,6 +68,15 @@ public final class Applier {
         if (!Files.isRegularFile(staged)) throw new IOException("the download is missing: " + staged);
         final boolean sameName = oldJar.toAbsolutePath().normalize().equals(newJar.toAbsolutePath().normalize());
         if (!sameName) {
+            final com.ootruffle.modupdatechecker.ModStatus update;
+            try {
+                update = com.ootruffle.modupdatechecker.core.JarScanner.read(staged);
+            } catch (Exception e) {
+                throw new IOException("the download can't be read: " + e, e);
+            }
+            Installer.checkTarget(oldJar, newJar, update == null ? null : update.id);
+        }
+        if (!sameName) {
             // A .tmp name first: Fabric only loads *.jar, so a half-copied file is never picked up.
             final Path tmp = newJar.resolveSibling(newJar.getFileName() + ".tmp");
             Files.copy(staged, tmp, StandardCopyOption.REPLACE_EXISTING);

@@ -1,5 +1,6 @@
 package com.ootruffle.modupdatechecker.core;
 
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -51,6 +52,113 @@ public final class Versions {
             if (c != 0) return c;
         }
         return Integer.compare(pa.length, pb.length);
+    }
+
+    /**
+     * Whether {@code version} (a Minecraft version like "1.8.9") satisfies a fabric.mod.json
+     * dependency: a string, or a list of strings any of which may match. Each string is one or more
+     * space-separated conditions that all must hold: {@code *}, {@code 1.8.9}, {@code =1.8.9},
+     * {@code >=1.8}, {@code <1.9}, {@code ~1.8.9}, {@code ^1.8}, {@code 1.8.x}. Anything it can't
+     * read counts as a match, so an unusual (but valid) dependency never blocks an update.
+     */
+    public static boolean matches(String version, Object dependency) {
+        if (dependency == null) return true;
+        if (dependency instanceof List<?> list) {
+            if (list.isEmpty()) return true;
+            for (Object o : list) if (o instanceof String s && matchesOne(version, s)) return true;
+            return false;
+        }
+        return !(dependency instanceof String s) || matchesOne(version, s);
+    }
+
+    private static boolean matchesOne(String version, String predicate) {
+        final String p = predicate.trim();
+        if (p.isEmpty() || p.equals("*")) return true;
+        for (String part : p.split("\\s+")) {
+            final Boolean ok = condition(version, part);
+            if (ok == null) return true; // Unreadable: don't block.
+            if (!ok) return false;
+        }
+        return true;
+    }
+
+    private static Boolean condition(String version, String part) {
+        String op = "";
+        for (String o : new String[] {">=", "<=", ">", "<", "=", "~", "^"}) {
+            if (part.startsWith(o)) {
+                op = o;
+                break;
+            }
+        }
+        final String target = part.substring(op.length());
+        final long[] have = numbers(version);
+        if (have == null) return null;
+        // Wildcards ("1.8.x", "1.*"): the parts before the wildcard must be equal.
+        if (target.matches("[0-9.]*[xX*](\\..*)?")) {
+            if (!op.isEmpty() && !op.equals("=")) return null;
+            final String[] t = target.split("\\.");
+            for (int k = 0; k < t.length; k++) {
+                if (t[k].equalsIgnoreCase("x") || t[k].equals("*")) return true;
+                final long n;
+                try {
+                    n = Long.parseLong(t[k]);
+                } catch (NumberFormatException e) {
+                    return null;
+                }
+                if ((k < have.length ? have[k] : 0) != n) return false;
+            }
+            return true;
+        }
+        final long[] want = numbers(target);
+        if (want == null) return null;
+        final int c = compareNumbers(have, want);
+        return switch (op) {
+            case "", "=" -> c == 0;
+            case ">=" -> c >= 0;
+            case ">" -> c > 0;
+            case "<=" -> c <= 0;
+            case "<" -> c < 0;
+            // Same minor ("~1.8.9": 1.8.9 up to, not including, 1.9).
+            case "~" -> c >= 0 && have[0] == want[0] && (want.length < 2 || (have.length > 1 ? have[1] : 0) == want[1]);
+            // Same major ("^1.8": 1.8 up to, not including, 2.0).
+            case "^" -> c >= 0 && have[0] == want[0];
+            default -> null;
+        };
+    }
+
+    /** "1.8.9" → [1, 8, 9]; pre-release and build parts are dropped. Null if it isn't numeric. */
+    private static long[] numbers(String v) {
+        String s = v.trim();
+        final int cut = indexOfAny(s, '-', '+');
+        if (cut >= 0) s = s.substring(0, cut);
+        if (s.isEmpty()) return null;
+        final String[] parts = s.split("\\.");
+        final long[] out = new long[parts.length];
+        for (int k = 0; k < parts.length; k++) {
+            try {
+                out[k] = Long.parseLong(parts[k]);
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return out;
+    }
+
+    private static int indexOfAny(String s, char a, char b) {
+        final int i = s.indexOf(a);
+        final int j = s.indexOf(b);
+        if (i < 0) return j;
+        if (j < 0) return i;
+        return Math.min(i, j);
+    }
+
+    private static int compareNumbers(long[] a, long[] b) {
+        for (int k = 0; k < Math.max(a.length, b.length); k++) {
+            final long x = k < a.length ? a[k] : 0;
+            final long y = k < b.length ? b[k] : 0;
+            if (x != y) return Long.compare(x, y);
+        }
+        return 0;
     }
 
     static String clean(String v) {
