@@ -20,6 +20,11 @@ public final class DevAutotest {
 
     private DevAutotest() {}
 
+    /** An autotest is driving the game (nothing else should open screens). */
+    static boolean active() {
+        return ENABLED || ONECONFIG;
+    }
+
     /** {@code MODUPDATECHECKER_AUTOTEST=oneconfig}: goes through the OneConfig page instead. */
     private static final boolean ONECONFIG = FabricLoader.getInstance().isDevelopmentEnvironment()
             && "oneconfig".equals(System.getenv("MODUPDATECHECKER_AUTOTEST"));
@@ -61,7 +66,16 @@ public final class DevAutotest {
             case 2 -> {
                 shot(mc, "autotest-updates.png");
                 step++;
-                if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_DOWNLOAD"))) {
+                if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_FIX"))) {
+                    // Removes every problem the screen lists, as its buttons would.
+                    final var problems = com.ootruffle.modupdatechecker.core.ModProblems.current();
+                    final var jars = new java.util.ArrayList<>(com.ootruffle.modupdatechecker.install.ModRemover.extraCopies(problems, true));
+                    jars.addAll(problems.otherLoaders);
+                    jars.addAll(problems.replaced);
+                    com.ootruffle.modupdatechecker.install.ModRemover.removeAll(jars);
+                    step = 4;
+                    wait = 40;
+                } else if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_DOWNLOAD"))) {
                     com.ootruffle.modupdatechecker.install.Installer.downloadAll();
                     wait = 20;
                 } else {

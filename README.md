@@ -6,6 +6,7 @@ A Minecraft 1.8.9 [Ornithe](https://ornithemc.net) mod that checks every install
 - **GitHub for the rest.** Mods that aren't on Modrinth are checked against the latest GitHub release of the repository linked in their `fabric.mod.json`.
 - **Safe installs.** Downloads are checked against their published hash, and must be a Fabric/Ornithe mod with the same mod id, so a wrong link or a Forge release can't replace your mod. Jars are swapped after the game closes, since Windows locks a running game's jars.
 - **Updates itself** the same way, from this repository's releases.
+- **Finds mod problems.** Several copies of one mod, and jars made for another loader (which Ornithe never loads), are listed with a button to move them out of `mods` into `removed-mods`. This replaces the Duplicate Mod Warning mod, which it offers to remove.
 - **Keeps Prism's metadata right.** In a Prism Launcher instance, a mod updated from Modrinth gets a `mods/.index/*.pw.toml` file for its new jar (replacing the old jar's), so Prism lists it as from Modrinth instead of "Unknown" and can update it itself.
 
 ## Requirements
@@ -18,6 +19,7 @@ A Minecraft 1.8.9 [Ornithe](https://ornithemc.net) mod that checks every install
 ## In game
 
 - A **Mod Updates** button on the title screen and pause menu (yellow with a count when there are updates) opens the updates screen. There you can see changelogs, open a mod's page, ignore a version, update one mod, or **Update all**.
+- When the mods folder has problems, the screen opens by itself on the title screen at its **Problems** tab, and the button turns red (**Mod Problems**).
 - With OneConfig: a **Mod Update Checker** page (Utility, or `/modupdates`) with Open, Update All and Check Again, plus the settings.
 - The screen follows your GUI scale and, with OneConfig, its theme, accent colour, transparency and background blur.
 
@@ -31,18 +33,28 @@ The update check can also run before the game starts, as a pre-launch command. I
 
 The mod copies itself to `config/modupdatechecker/prelaunch.jar` each time the game starts, so the command keeps working when it updates. Start the game once with the mod before adding it, or Prism will refuse to launch.
 
-`--gui` opens a window listing the updates to tick, with **Update N & launch**, **Launch without updating** and **Quit** (which cancels the launch). It closes by itself when there's nothing to update. Other options:
+`--gui` opens a window listing the updates to tick, with **Update N & launch**, **Launch without updating** and **Quit** (which cancels the launch). Problems in the mods folder are listed above the updates (see [Mod problems](#mod-problems)). It closes by itself when there's nothing to update or fix. Other options:
 
 | Option | What it does |
 | --- | --- |
 | *(none)* | Just lists updates in Prism's launch log |
-| `--install` | Installs every update without asking |
+| `--install` | Installs every update without asking, after moving extra copies of a mod out |
 | `--verbose` | Lists every mod, not just updates |
 | `--timeout <s>` | Gives up on the check after this many seconds (default 60) |
 
 Errors, being offline and running past the timeout never stop the launch; only **Quit** does.
 
 When the game was started by Prism, the in-game screen can also set this up for you (**Set up**). Prism keeps its settings in memory, so this happens when you close the game: Prism is closed (force-closed if it doesn't close within a few seconds, unless it's still running another game), the command is added to `instance.cfg` (with a backup), and Prism is opened again. An existing pre-launch command is never replaced.
+
+## Mod problems
+
+Every jar in `mods` is read and hashed, and these are reported:
+
+- **Duplicates:** jars with the same file hash, the same mod id, or the same name. The highest version is kept (for identical copies, the one not named like a copy, such as `mod (1).jar`). Jars that only share a name are flagged to check first, since they have different mod ids.
+- **Other loaders:** Forge, NeoForge, Quilt, LiteLoader, Rift and LabyMod jars, which Ornithe never loads.
+- **Duplicate Mod Warning,** which isn't needed next to this mod.
+
+Fixing one moves the jars to `removed-mods`, next to `mods`, so they can be put back. In game, a jar the game has open is moved when it closes; restart for the change to apply. In the pre-launch window, problems get ticked rows above the updates (extra copies are ticked, name-only matches and other-loader jars aren't) and are fixed before any update is installed. `--install` also moves extra copies (same hash or mod id) and Duplicate Mod Warning out; the rest is only listed.
 
 ## OneClient
 
@@ -56,6 +68,7 @@ Polyfrost's OneClient launcher updates mods itself, so this mod isn't needed the
 | --- | --- | --- |
 | `checkOnStartup` | `true` | Check when the game starts |
 | `showMenuButton` | `true` | Show the Mod Updates button |
+| `checkModProblems` | `true` | Look for duplicate mods and mods for other loaders |
 | `githubToken` | `""` | Optional. GitHub allows 60 requests an hour without a token; a token with no scopes raises that to 5,000 |
 | `githubCacheMinutes` | `360` | How long a GitHub answer is reused (it is still dropped as soon as a newer release is tagged) |
 | `ignoredVersions` | `{}` | Mod id → the version you chose to skip |

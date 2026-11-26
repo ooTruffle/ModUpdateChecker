@@ -56,7 +56,10 @@ import com.ootruffle.modupdatechecker.OneClient
 import com.ootruffle.modupdatechecker.PrismIntegration
 import com.ootruffle.modupdatechecker.ModStatus.State
 import com.ootruffle.modupdatechecker.UpdateChecker
+import com.ootruffle.modupdatechecker.core.Env
+import com.ootruffle.modupdatechecker.core.ModProblems
 import com.ootruffle.modupdatechecker.install.Installer
+import com.ootruffle.modupdatechecker.install.ModRemover
 import kotlinx.coroutines.delay
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.GuiScreen
@@ -107,9 +110,10 @@ private const val PX_PER_GUI_SCALE = 0.6f
 private val PanelWidth = 820.dp
 private val PanelHeight = 520.dp
 
-private enum class Filter(val label: String) { UPDATES("Updates"), ALL("All"), UP_TO_DATE("Up to date"), NOT_FOUND("Not found") }
+private enum class Filter(val label: String) { PROBLEMS("Problems"), UPDATES("Updates"), ALL("All"), UP_TO_DATE("Up to date"), NOT_FOUND("Not found") }
 
 private fun Filter.matches(m: ModStatus): Boolean = when (this) {
+    Filter.PROBLEMS -> false
     Filter.ALL -> true
     Filter.UPDATES -> m.state == State.UPDATE_AVAILABLE || m.state == State.DOWNLOADING || m.state == State.DOWNLOADED
     Filter.UP_TO_DATE -> m.state == State.UP_TO_DATE || m.state == State.NEWER
@@ -205,10 +209,38 @@ private fun openUrl(url: String) {
     }, "ModUpdateChecker-Browser").apply { isDaemon = true }.start()
 }
 
+/** Opens [dir] in the file manager. */
+private fun openFolder(dir: java.nio.file.Path) {
+    Thread({
+        runCatching { java.nio.file.Files.createDirectories(dir) }
+        try {
+            java.awt.Desktop.getDesktop().open(dir.toFile())
+        } catch (e: Throwable) {
+            val os = System.getProperty("os.name", "").lowercase()
+            runCatching {
+                when {
+                    os.contains("win") -> ProcessBuilder("explorer", dir.toString()).start()
+                    os.contains("mac") -> ProcessBuilder("open", dir.toString()).start()
+                    else -> ProcessBuilder("xdg-open", dir.toString()).start()
+                }
+            }
+        }
+    }, "ModUpdateChecker-Folder").apply { isDaemon = true }.start()
+}
+
+private fun ModProblems.Jar.describe(): String = fileName() + (version?.let { " ($it)" } ?: "")
+
 /** The updates list, drawn with PolyCompose. */
 class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(ComposeScreen.RenderMode.CONTINUOUS) {
 
-    private var filter by mutableStateOf(if (UpdateChecker.updateCount() > 0 || UpdateChecker.running()) Filter.UPDATES else Filter.ALL)
+    private var filter by mutableStateOf(
+        when {
+            ModRemover.problemCount() > 0 -> Filter.PROBLEMS
+            UpdateChecker.updateCount() > 0 || UpdateChecker.running() -> Filter.UPDATES
+            else -> Filter.ALL
+        }
+    )
+    private var problemStatus by mutableStateOf<String?>(null)
     private val expanded = mutableStateMapOf<String, Boolean>()
     private var frame by mutableStateOf(0)
 
@@ -275,7 +307,8 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
     private fun Panel(tick: Int) {
         val mods = UpdateChecker.mods()
         val running = UpdateChecker.running()
-        val counts = Filter.entries.associateWith { f -> mods.count { f.matches(it) } }
+        val problems = ModRemover.problemCount()
+        val counts = Filter.entries.associateWith { f -> if (f == Filter.PROBLEMS) problems else mods.count { f.matches(it) } }
         val downloadable = mods.count { it.wantsUpdate() && it.canDownload() }
         val shown = mods.filter { filter.matches(it) }
             .sortedWith(compareBy<ModStatus> { if (it.wantsUpdate()) 0 else if (it.state == State.UPDATE_AVAILABLE) 1 else 2 }.thenBy { it.name.lowercase() })
@@ -306,18 +339,23 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (f in Filter.entries) {
+                    if (f == Filter.PROBLEMS && problems == 0 && filter != f) continue
                     Chip("${f.label} (${counts[f] ?: 0})", filter == f) { filter = f }
                 }
             }
 
-            if (OneClient.shouldNotify() || OneClient.removalRequested()) {
+            if (problems > 0 && filter != Filter.PROBLEMS) {
+                ProblemsBanner(problems)
+            } else if (OneClient.shouldNotify() || OneClient.removalRequested()) {
                 OneClientBanner()
             } else if (PrismIntegration.offer() || PrismIntegration.requested()) {
                 PrismBanner()
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (shown.isEmpty()) {
+                if (filter == Filter.PROBLEMS) {
+                    ProblemsList(problems)
+                } else if (shown.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(
                             when {
@@ -336,11 +374,131 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
                 }
             }
 
+            val restart = ModRemover.removedCount() > 0
             Text(
-                if (Installer.hasPending()) "Downloaded updates are installed when you close the game."
-                else "Mods are matched on Modrinth by file hash; the rest are looked up in their GitHub releases.",
-                color = if (Installer.hasPending()) Yellow else TextSecondary, size = 12.sp,
+                when {
+                    restart && Installer.hasPending() -> "Restart the game to finish: removed mods are moved and downloaded updates installed when it closes."
+                    restart -> "Restart the game so removed mods are no longer loaded."
+                    Installer.hasPending() -> "Downloaded updates are installed when you close the game."
+                    else -> "Mods are matched on Modrinth by file hash; the rest are looked up in their GitHub releases."
+                },
+                color = if (restart || Installer.hasPending()) Yellow else TextSecondary, size = 12.sp,
             )
+        }
+    }
+
+    /** Points to the Problems tab from the others. */
+    @Composable
+    private fun ProblemsBanner(count: Int) {
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(CardShape)
+                .background(Red.copy(alpha = 0.10f))
+                .border(1.dp, Red.copy(alpha = 0.45f), CardShape)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(if (count == 1) "1 problem in your mods folder" else "$count problems in your mods folder", size = 14.sp, weight = FontWeight.SemiBold)
+                Spacer(Modifier.height(2.dp))
+                Text("Duplicate copies of a mod, or jars that can't be loaded.", color = TextSecondary, size = 12.sp)
+            }
+            Button("Show", primary = true) { filter = Filter.PROBLEMS }
+        }
+    }
+
+    private fun removed(jars: List<ModProblems.Jar>) {
+        if (jars.isEmpty()) return
+        val waitingBefore = ModRemover.waiting()
+        val now = ModRemover.removeAll(jars)
+        val later = ModRemover.waiting() - waitingBefore
+        val failed = jars.size - now - later
+        problemStatus = buildString {
+            append(if (now + later == 1) "Moved 1 jar" else "Moved ${now + later} jars")
+            append(" to removed-mods.")
+            if (later > 0) append(" $later in use ${if (later == 1) "is" else "are"} moved when you close the game.")
+            if (failed > 0) append(" $failed couldn't be moved.")
+            append(" Restart to apply.")
+        }
+    }
+
+    /** Duplicate mods, mods for other loaders and mods this one replaces, each with a fix. */
+    @Composable
+    private fun ProblemsList(count: Int) {
+        @Suppress("UNUSED_VARIABLE") val refresh = frame
+        val result = ModProblems.current()
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    problemStatus ?: if (count == 0) "No problems found." else "Removed jars go to removed-mods, next to your mods folder, so you can put them back.",
+                    color = if (problemStatus != null) Green else TextSecondary, size = 12.sp, maxLines = 2,
+                    modifier = Modifier.weight(1f),
+                )
+                Button("Open mods folder") { openFolder(Env.modsDir()) }
+                val extras = ModRemover.extraCopies(result, false)
+                if (extras.isNotEmpty()) {
+                    Button("Remove all extra copies (${extras.size})", primary = true) { removed(extras) }
+                }
+            }
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (jar in ModRemover.remaining(result.replaced)) {
+                    item(key = "replaced:" + jar.path) {
+                        val name = ModProblems.REPLACED[jar.id] ?: jar.label()
+                        ProblemCard(
+                            "$name isn't needed any more",
+                            listOf("Mod Update Checker finds duplicate mods and mods for other loaders now." to TextSecondary,
+                                jar.describe() to TextSecondary),
+                            "Remove it",
+                        ) { removed(listOf(jar)) }
+                    }
+                }
+                for (group in result.duplicates) {
+                    val extra = ModRemover.remaining(group.extra())
+                    if (extra.isEmpty()) continue
+                    item(key = "dupe:" + group.keep().path) {
+                        val lines = mutableListOf<Pair<String, Color>>()
+                        if (group.byNameOnly) lines += "Same name but different mod ids: check these are really the same mod." to Yellow
+                        lines += "Keep    " + group.keep().describe() to Green
+                        for (jar in extra) lines += "Remove  " + jar.describe() to Red
+                        ProblemCard(
+                            "${group.name} is installed ${extra.size + 1} times" + if (group.identical) " (identical copies)" else "",
+                            lines,
+                            if (extra.size == 1) "Remove extra copy" else "Remove extra copies",
+                        ) { removed(extra) }
+                    }
+                }
+                val other = ModRemover.remaining(result.otherLoaders)
+                if (other.isNotEmpty()) {
+                    item(key = "other") {
+                        ProblemCard(
+                            if (other.size == 1) "1 mod is made for another loader" else "${other.size} mods are made for other loaders",
+                            listOf("Ornithe never loads these." to TextSecondary) +
+                                other.map { "${it.fileName()}  ·  ${it.otherLoader}" to TextPrimary },
+                            if (other.size == 1) "Remove it" else "Remove them",
+                        ) { removed(other) }
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun ProblemCard(title: String, lines: List<Pair<String, Color>>, action: String, onClick: () -> Unit) {
+        Row(
+            Modifier.fillMaxWidth()
+                .clip(CardShape)
+                .background(CardBackground)
+                .border(1.dp, Border, CardShape)
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, size = 15.sp, weight = FontWeight.SemiBold)
+                for ((text, color) in lines) Text(text, color = color, size = 12.sp)
+            }
+            Button(action) { onClick() }
         }
     }
 

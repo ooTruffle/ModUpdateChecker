@@ -60,6 +60,38 @@ public final class Installer {
     /** Marks an entry in the pending list that deletes the jar instead of replacing it. */
     static final String DELETE = "-";
 
+    /** Marks an entry in the pending list that moves the jar (to removed-mods) instead of replacing it. */
+    static final String MOVE = ">";
+
+    private static void addHook() {
+        if (!hookAdded) {
+            hookAdded = true;
+            Runtime.getRuntime().addShutdownHook(new Thread(Installer::startApplier, "ModUpdateChecker-Apply"));
+        }
+    }
+
+    /** Moves [jar] to [target] when the game closes (it's locked until then), instead of any update of it. */
+    public static void moveOnExit(Path jar, Path target) {
+        synchronized (pending) {
+            pending.removeIf(p -> p[1].equals(jar.toString()));
+            pending.add(new String[] {MOVE, jar.toString(), target.toString()});
+            try {
+                Files.createDirectories(stagedDir());
+            } catch (Exception ignored) {
+            }
+            writePending();
+            addHook();
+        }
+    }
+
+    /** Whether some jar is waiting to be moved to [target] when the game closes. */
+    public static boolean isMoveTarget(Path target) {
+        synchronized (pending) {
+            for (String[] p : pending) if (MOVE.equals(p[0]) && p[2].equals(target.toString())) return true;
+        }
+        return false;
+    }
+
     /** Deletes this mod's jar when the game closes. Returns false if it can't (dev runs). */
     public static boolean removeSelfOnExit() {
         if (Env.selfPaths.size() != 1 || !Files.isRegularFile(Env.selfPaths.get(0))) return false;
@@ -84,7 +116,7 @@ public final class Installer {
 
     public static boolean selfRemovalPending() {
         synchronized (pending) {
-            for (String[] p : pending) if (DELETE.equals(p[0])) return true;
+            for (String[] p : pending) if (DELETE.equals(p[0])) return true; // Only ever this mod's own jar.
         }
         return false;
     }

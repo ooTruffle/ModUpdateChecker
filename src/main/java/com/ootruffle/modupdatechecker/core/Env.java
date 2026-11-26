@@ -21,6 +21,9 @@ public final class Env {
 
     public static volatile String minecraftVersion = "1.8.9";
 
+    /** Running in the game (false before launch, in the pre-launch check). */
+    public static volatile boolean inGame;
+
     /** Finds the installed mods. */
     public static volatile Supplier<List<ModStatus>> scanner = Collections::emptyList;
 

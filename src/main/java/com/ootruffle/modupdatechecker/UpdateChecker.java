@@ -1,7 +1,10 @@
 package com.ootruffle.modupdatechecker;
 
 import com.ootruffle.modupdatechecker.core.Env;
+import com.ootruffle.modupdatechecker.core.JarScanner;
 import com.ootruffle.modupdatechecker.core.Json;
+import com.ootruffle.modupdatechecker.core.ModProblems;
+import com.ootruffle.modupdatechecker.install.ModRemover;
 import com.ootruffle.modupdatechecker.core.Versions;
 import java.io.InputStream;
 import java.net.URI;
@@ -105,8 +108,23 @@ public final class UpdateChecker {
     }
 
     private static void check() throws Exception {
-        final List<ModStatus> found = new ArrayList<>(Env.scanner.get());
-        found.removeIf(m -> Config.get().skippedMods.contains(m.id));
+        summary = "Looking at your mods...";
+        final ModProblems.Result problems = Config.get().checkModProblems ? ModProblems.scan() : ModProblems.clear();
+        ModProblems.log(problems);
+        final List<ModStatus> found = new ArrayList<>();
+        for (ModStatus m : Env.scanner.get()) {
+            if (Config.get().skippedMods.contains(m.id) || ModProblems.REPLACED.containsKey(m.id) || ModRemover.isRemoved(m.jar)) continue;
+            // With two copies of a mod, check (and update) the one that's kept.
+            final Path kept = problems.keptInsteadOf(m.jar);
+            if (kept != null) {
+                try {
+                    final ModStatus k = JarScanner.read(kept);
+                    if (k != null && k.id.equals(m.id)) m = k;
+                } catch (Exception ignored) {
+                }
+            }
+            found.add(m);
+        }
         found.sort((a, b) -> a.name.compareToIgnoreCase(b.name));
         mods = found;
         summary = "Checking " + found.size() + " mods on Modrinth...";

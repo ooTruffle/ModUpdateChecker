@@ -1,7 +1,9 @@
 package com.ootruffle.modupdatechecker;
 
 import com.ootruffle.modupdatechecker.compat.OneConfigCompat;
+import com.ootruffle.modupdatechecker.core.ModProblems;
 import com.ootruffle.modupdatechecker.install.Installer;
+import com.ootruffle.modupdatechecker.install.ModRemover;
 import com.ootruffle.modupdatechecker.ui.UpdatesScreen;
 import net.minecraft.client.Minecraft;
 import net.ornithemc.osl.entrypoints.api.ModInitializer;
@@ -24,6 +26,7 @@ public final class ModUpdateChecker implements ModInitializer {
 
     private static volatile boolean openScreen;
     private static boolean oneClientNoticeShown;
+    private static boolean problemsShown;
 
     @Override
     public void init() {
@@ -34,7 +37,11 @@ public final class ModUpdateChecker implements ModInitializer {
         DevAutotest.early();
         OneConfigCompat.init();
         if (Config.get().checkOnStartup) {
-            UpdateChecker.checkAsync();
+            UpdateChecker.checkAsync(); // Looks for mod problems first.
+        } else if (Config.get().checkModProblems) {
+            final Thread t = new Thread(() -> ModProblems.log(ModProblems.scan()), "ModUpdateChecker-Problems");
+            t.setDaemon(true);
+            t.start();
         }
         LOGGER.info("Mod Update Checker initialised");
     }
@@ -78,6 +85,13 @@ public final class ModUpdateChecker implements ModInitializer {
     public static void onClientTick() {
         if (openScreen) {
             openScreen = false;
+            final Minecraft mc = Minecraft.getMinecraft();
+            mc.displayGuiScreen(UpdatesScreen.create(mc.currentScreen));
+        }
+        // Duplicate or unusable mods: show them once, on the title screen (what Duplicate Mod Warning did).
+        if (!problemsShown && !DevAutotest.active() && Minecraft.getMinecraft().currentScreen instanceof net.minecraft.client.gui.GuiMainMenu
+                && ModRemover.problemCount() > 0) {
+            problemsShown = true;
             final Minecraft mc = Minecraft.getMinecraft();
             mc.displayGuiScreen(UpdatesScreen.create(mc.currentScreen));
         }

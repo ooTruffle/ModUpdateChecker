@@ -79,6 +79,9 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
     @Switch(title = "Menu Button", description = "Show the Mod Updates button on the title screen and pause menu.", subcategory = "Settings")
     public boolean showMenuButton = true;
 
+    @Switch(title = "Find Mod Problems", description = "Look for duplicate mods and mods for other loaders, and offer to remove them.", subcategory = "Settings")
+    public boolean checkModProblems = true;
+
     @Slider(title = "GitHub Cache (minutes)", description = "How long a GitHub answer is reused before asking again (GitHub allows 60 requests an hour without a token).",
             min = 0, max = 1440, step = 30, subcategory = "Settings")
     public int githubCacheMinutes = 360;
@@ -95,6 +98,7 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
         final Config c = Config.get();
         INSTANCE.checkOnStartup = c.checkOnStartup;
         INSTANCE.showMenuButton = c.showMenuButton;
+        INSTANCE.checkModProblems = c.checkModProblems;
         INSTANCE.githubCacheMinutes = c.githubCacheMinutes;
         INSTANCE.preload();
         CommandManager.INSTANCE.register(ScreensKt.addDefaultCommand(INSTANCE, "modupdates"));
@@ -132,12 +136,13 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
     /** Copies the page's settings into {@link Config}, saving it if anything changed. */
     static void sync() {
         final Config c = Config.get();
-        if (c.checkOnStartup == INSTANCE.checkOnStartup && c.showMenuButton == INSTANCE.showMenuButton
+        if (c.checkOnStartup == INSTANCE.checkOnStartup && c.showMenuButton == INSTANCE.showMenuButton && c.checkModProblems == INSTANCE.checkModProblems
                 && c.githubCacheMinutes == INSTANCE.githubCacheMinutes) {
             return;
         }
         c.checkOnStartup = INSTANCE.checkOnStartup;
         c.showMenuButton = INSTANCE.showMenuButton;
+        c.checkModProblems = INSTANCE.checkModProblems;
         c.githubCacheMinutes = INSTANCE.githubCacheMinutes;
         Config.save();
     }

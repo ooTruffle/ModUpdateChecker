@@ -16,6 +16,9 @@ public final class Config {
     /** Check for updates as the game starts. */
     public boolean checkOnStartup = true;
 
+    /** Look for duplicate mods, mods for other loaders and mods this one replaces. */
+    public boolean checkModProblems = true;
+
     /** Show the "Mod Updates" button on the title screen and pause menu. */
     public boolean showMenuButton = true;
 
@@ -66,6 +69,7 @@ public final class Config {
                 final Config c = new Config();
                 c.checkOnStartup = Json.bool(o, "checkOnStartup", c.checkOnStartup);
                 c.showMenuButton = Json.bool(o, "showMenuButton", c.showMenuButton);
+                c.checkModProblems = Json.bool(o, "checkModProblems", c.checkModProblems);
                 c.githubToken = o.get("githubToken") instanceof String s ? s : "";
                 c.githubCacheMinutes = (int) Json.num(o, "githubCacheMinutes", c.githubCacheMinutes);
                 for (Map.Entry<String, Object> e : Json.obj(o, "ignoredVersions").entrySet()) {
@@ -92,6 +96,7 @@ public final class Config {
         final Map<String, Object> o = new LinkedHashMap<>();
         o.put("checkOnStartup", c.checkOnStartup);
         o.put("showMenuButton", c.showMenuButton);
+        o.put("checkModProblems", c.checkModProblems);
         o.put("githubToken", c.githubToken);
         o.put("githubCacheMinutes", c.githubCacheMinutes);
         o.put("ignoredVersions", c.ignoredVersions);

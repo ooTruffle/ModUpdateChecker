@@ -5,7 +5,9 @@ import com.ootruffle.modupdatechecker.ModStatus;
 import com.ootruffle.modupdatechecker.UpdateChecker;
 import com.ootruffle.modupdatechecker.core.Env;
 import com.ootruffle.modupdatechecker.core.JarScanner;
+import com.ootruffle.modupdatechecker.core.ModProblems;
 import com.ootruffle.modupdatechecker.install.Installer;
+import com.ootruffle.modupdatechecker.install.ModRemover;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -21,8 +23,8 @@ import java.util.List;
  * The mod copies itself to {@code prelaunch.jar} each time the game starts, so the command keeps
  * working when the mod updates (the game has to have been started once with the mod).
  * <p>
- * Options: {@code --gui} opens a window listing the updates to pick from (see {@link PrelaunchGui});
- * it closes by itself when there's nothing to update. {@code --install} swaps updates in straight away (nothing holds the jars yet; without
+ * Options: {@code --gui} opens a window listing the updates, and problems in the mods folder, to pick from (see {@link PrelaunchGui});
+ * it closes by itself when there's nothing to update. {@code --install} swaps updates in straight away, after moving extra copies of a mod out (nothing holds the jars yet; without
  * it, updates are only listed in the launcher's log), {@code --game-dir <dir>} (default: Prism's
  * {@code INST_MC_DIR}, or the folder this jar is in), {@code --timeout <seconds>} (default 60),
  * {@code --verbose} lists every mod.
@@ -85,6 +87,17 @@ public final class PrelaunchCheck {
         final boolean doInstall = install;
         final List<String> report = new ArrayList<>();
         final Thread worker = new Thread(() -> {
+            if (doInstall && Config.get().checkModProblems) {
+                // Extra copies of a mod (same file or mod id) and mods this one replaces go first,
+                // so the update check sees the copy that's kept. Name-only matches and mods for
+                // other loaders are only listed: they're worth a look first.
+                final ModProblems.Result problems = ModProblems.scan();
+                final List<ModProblems.Jar> remove = new ArrayList<>(ModRemover.extraCopies(problems, false));
+                remove.addAll(problems.replaced);
+                for (ModProblems.Jar j : remove) {
+                    report.add("  " + j.fileName() + (ModRemover.remove(j) ? ": moved to removed-mods" : ": couldn't be moved"));
+                }
+            }
             UpdateChecker.checkNow();
             for (ModStatus m : UpdateChecker.mods()) {
                 if (!m.wantsUpdate()) continue;
@@ -112,8 +125,8 @@ public final class PrelaunchCheck {
         // Plain ASCII: launchers don't always read a command's output as UTF-8.
         System.out.println("[ModUpdateChecker] " + UpdateChecker.summary().replace(" · ", ", "));
         for (String line : report) System.out.println("[ModUpdateChecker] " + line);
-        if (!report.isEmpty() && !doInstall) {
-            System.out.println("[ModUpdateChecker] Add --install to the pre-launch command to install them before launching,"
+        if ((!report.isEmpty() || !ModProblems.current().isEmpty()) && !doInstall) {
+            System.out.println("[ModUpdateChecker] Add --install (or --gui) to the pre-launch command to fix this before launching,"
                     + " or use the Mod Updates screen in game.");
         }
         return true;

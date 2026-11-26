@@ -54,7 +54,10 @@ public abstract class GuiScreenMixin {
         final GuiButton button = modupdatechecker$button;
         if (button == null) return;
         final int updates = UpdateChecker.updateCount();
-        if (UpdateChecker.running()) {
+        final int problems = com.ootruffle.modupdatechecker.install.ModRemover.problemCount();
+        if (problems > 0) {
+            button.displayString = "§cMod Problems (" + problems + ")";
+        } else if (UpdateChecker.running()) {
             button.displayString = "Checking mods...";
         } else if (updates > 0) {
             button.displayString = "\u00a7eMod Updates (" + updates + ")";

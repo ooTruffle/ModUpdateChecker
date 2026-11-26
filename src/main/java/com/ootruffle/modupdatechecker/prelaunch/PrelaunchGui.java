@@ -3,7 +3,9 @@ package com.ootruffle.modupdatechecker.prelaunch;
 import com.ootruffle.modupdatechecker.Config;
 import com.ootruffle.modupdatechecker.ModStatus;
 import com.ootruffle.modupdatechecker.UpdateChecker;
+import com.ootruffle.modupdatechecker.core.ModProblems;
 import com.ootruffle.modupdatechecker.install.Installer;
+import com.ootruffle.modupdatechecker.install.ModRemover;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -73,6 +75,7 @@ final class PrelaunchGui {
     private JButton skipButton;
     private JButton quitButton;
     private final List<Row> rows = new ArrayList<>();
+    private final List<ProblemRow> problemRows = new ArrayList<>();
     private volatile boolean installing;
 
     private PrelaunchGui(int timeoutSeconds) {
@@ -369,6 +372,107 @@ final class PrelaunchGui {
         }
     }
 
+    /** A problem in the mods folder (see {@link ModProblems}): checkbox, what's wrong, and the jars it takes out. */
+    private final class ProblemRow {
+        final List<ModProblems.Jar> jars;
+        final JCheckBox box;
+        final JLabel status;
+
+        ProblemRow(String title, String detail, List<ModProblems.Jar> jars, boolean ticked) {
+            this.jars = jars;
+            final JPanel card = new JPanel(new BorderLayout(12, 0)) {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    final Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(CARD);
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
+                    g2.dispose();
+                }
+            };
+            card.setOpaque(false);
+            card.setBorder(new RoundBorder());
+            card.setAlignmentX(Component.LEFT_ALIGNMENT);
+            card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 62));
+
+            box = new JCheckBox();
+            box.setOpaque(false);
+            box.setIcon(new CheckIcon());
+            box.setFocusPainted(false);
+            box.setSelected(ticked);
+            box.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            box.addActionListener(e -> refreshButton());
+            card.add(box, BorderLayout.WEST);
+
+            final JPanel text = new JPanel();
+            text.setOpaque(false);
+            text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+            text.add(label(title, TEXT, font(Font.BOLD, 14f)));
+            text.add(label(detail, TEXT_SECONDARY, font(Font.PLAIN, 12f)));
+            final StringBuilder tip = new StringBuilder("<html>Moves to removed-mods:");
+            for (ModProblems.Jar j : jars) tip.append("<br>").append(j.fileName().replace("<", "&lt;"));
+            text.setToolTipText(tip.append("</html>").toString());
+            text.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (box.isEnabled() && !installing) {
+                        box.setSelected(!box.isSelected());
+                        refreshButton();
+                    }
+                }
+            });
+            card.add(text, BorderLayout.CENTER);
+
+            final JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 4));
+            right.setOpaque(false);
+            status = label("", TEXT_SECONDARY, font(Font.PLAIN, 12f));
+            right.add(status);
+            card.add(right, BorderLayout.EAST);
+
+            list.add(card);
+            list.add(Box.createVerticalStrut(8));
+        }
+
+        void setStatus(String text, Color color) {
+            status.setText(text);
+            status.setForeground(color);
+        }
+    }
+
+    private static String versionOf(ModProblems.Jar j) {
+        return j.version != null ? j.version : j.fileName();
+    }
+
+    /** One row per problem the last scan found. */
+    private void addProblemRows(ModProblems.Result result) {
+        for (ModProblems.Jar j : result.replaced) {
+            final String name = ModProblems.REPLACED.getOrDefault(j.id, j.label());
+            problemRows.add(new ProblemRow(name + " isn't needed any more",
+                    "Mod Update Checker finds duplicate mods now. Removes " + j.fileName(), List.of(j), true));
+        }
+        for (ModProblems.Group g : result.duplicates) {
+            final StringBuilder extra = new StringBuilder();
+            // Versions tell the copies apart, unless they're the same: then the file names do.
+            boolean sameVersions = false;
+            for (ModProblems.Jar j : g.extra()) sameVersions |= versionOf(j).equals(versionOf(g.keep()));
+            for (ModProblems.Jar j : g.extra()) {
+                extra.append(extra.length() == 0 ? "" : ", ").append(sameVersions ? j.fileName() : versionOf(j));
+            }
+            problemRows.add(new ProblemRow(g.name + " is installed " + g.jars.size() + " times"
+                            + (g.identical ? " (identical copies)" : g.byNameOnly ? " (same name, different ids)" : ""),
+                    "Keeps " + (sameVersions ? g.keep().fileName() : versionOf(g.keep())) + ", removes " + extra, g.extra(), !g.byNameOnly));
+        }
+        if (!result.otherLoaders.isEmpty()) {
+            final StringBuilder names = new StringBuilder();
+            for (ModProblems.Jar j : result.otherLoaders) {
+                names.append(names.length() == 0 ? "" : ", ").append(j.fileName()).append(" (").append(j.otherLoader).append(')');
+            }
+            final int n = result.otherLoaders.size();
+            problemRows.add(new ProblemRow(n == 1 ? "1 mod is made for another loader" : n + " mods are made for other loaders",
+                    "Ornithe never loads " + (n == 1 ? "it" : "them") + ": " + names, result.otherLoaders, false));
+        }
+    }
+
     private static void browse(String url) {
         try {
             Desktop.getDesktop().browse(URI.create(url));
@@ -383,8 +487,14 @@ final class PrelaunchGui {
     private void refreshButton() {
         int n = 0;
         for (Row r : rows) if (r.box.isSelected()) n++;
-        updateButton.setEnabled(n > 0 && !installing);
-        updateButton.setText(n > 0 ? "Update " + n + " & launch" : "Update selected & launch");
+        int fixes = 0;
+        for (ProblemRow p : problemRows) if (p.box.isSelected()) fixes++;
+        updateButton.setEnabled(n + fixes > 0 && !installing);
+        if (fixes == 0) {
+            updateButton.setText(n > 0 ? "Update " + n + " & launch" : rows.isEmpty() ? "Fix selected & launch" : "Update selected & launch");
+        } else {
+            updateButton.setText((n > 0 ? "Update " + n + ", fix " + fixes : "Fix " + fixes) + " & launch");
+        }
     }
 
     // ---- work ----
@@ -410,7 +520,8 @@ final class PrelaunchGui {
             }
             int installable = 0;
             for (ModStatus m : updates) if (m.canDownload()) installable++;
-            if (installable == 0) {
+            final ModProblems.Result problems = ModProblems.current();
+            if (installable == 0 && problems.isEmpty()) {
                 // Nothing that can be installed from here: don't hold the launch up. Updates without
                 // a file still go to the launcher's log.
                 for (ModStatus m : updates) {
@@ -423,7 +534,17 @@ final class PrelaunchGui {
                 t.start();
                 return;
             }
-            subtitle.setText(UpdateChecker.summary() + ". Pick what to update before the game starts.");
+            if (problems.isEmpty()) {
+                subtitle.setText(UpdateChecker.summary() + ". Pick what to update before the game starts.");
+            } else {
+                final int n = problemCount(problems);
+                subtitle.setText((n == 1 ? "1 problem in your mods folder" : n + " problems in your mods folder")
+                        + (installable > 0 ? " and " + installable + (installable == 1 ? " update" : " updates") : "")
+                        + ". Pick what to fix before the game starts.");
+                subtitle.setForeground(YELLOW);
+                skipButton.setText(installable > 0 ? "Launch without changes" : "Launch without fixing");
+                addProblemRows(problems);
+            }
             for (ModStatus m : updates) rows.add(new Row(m));
             list.revalidate();
             list.repaint();
@@ -480,6 +601,10 @@ final class PrelaunchGui {
         }
     }
 
+    private static int problemCount(ModProblems.Result r) {
+        return r.duplicates.size() + r.replaced.size() + (r.otherLoaders.isEmpty() ? 0 : 1);
+    }
+
     private void installSelected() {
         installing = true;
         updateButton.setEnabled(false);
@@ -491,7 +616,27 @@ final class PrelaunchGui {
             r.ignore.setEnabled(false);
             if (r.box.isSelected()) chosen.add(r);
         }
+        final List<ProblemRow> fixes = new ArrayList<>();
+        for (ProblemRow p : problemRows) {
+            p.box.setEnabled(false);
+            if (p.box.isSelected()) fixes.add(p);
+        }
         final Thread t = new Thread(() -> {
+            // Problems first, so an update never lands next to a copy about to be removed.
+            int fixFailed = 0;
+            for (ProblemRow p : fixes) {
+                final int moved = ModRemover.removeAll(p.jars);
+                final boolean all = moved == p.jars.size();
+                if (!all) fixFailed++;
+                for (ModProblems.Jar j : p.jars) {
+                    System.out.println("[ModUpdateChecker]   " + j.fileName() + (ModRemover.isRemoved(j.path) ? ": moved to removed-mods" : ": couldn't be moved"));
+                }
+                SwingUtilities.invokeLater(() -> {
+                    if (all) p.setStatus("Moved to removed-mods", GREEN);
+                    else p.setStatus("Couldn't move " + (p.jars.size() - moved) + " (in use?)", RED);
+                });
+            }
+            final int failedFixes = fixFailed;
             int ok = 0;
             for (Row r : chosen) {
                 SwingUtilities.invokeLater(() -> r.setStatus("Downloading...", ACCENT_HOVER));
@@ -506,9 +651,11 @@ final class PrelaunchGui {
                 });
             }
             final int installedCount = ok;
-            final boolean failed = ok < chosen.size();
+            final boolean failed = ok < chosen.size() || failedFixes > 0;
             SwingUtilities.invokeLater(() -> {
-                subtitle.setText(installedCount + " of " + chosen.size() + " installed." + (failed ? " Launching anyway..." : " Launching..."));
+                final String fixed = fixes.isEmpty() ? "" : (fixes.size() - failedFixes) + " of " + fixes.size() + " fixed. ";
+                final String installed = chosen.isEmpty() ? "" : installedCount + " of " + chosen.size() + " installed. ";
+                subtitle.setText(fixed + installed + (failed ? "Launching anyway..." : "Launching..."));
                 final Timer timer = new Timer(failed ? 3500 : 1200, e -> finish());
                 timer.setRepeats(false);
                 timer.start();

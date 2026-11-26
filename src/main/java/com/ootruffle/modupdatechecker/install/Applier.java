@@ -45,6 +45,15 @@ public final class Applier {
         for (String line : lines) {
             final String[] p = line.split("\t");
             if (p.length != 3 && p.length != 4) continue;
+            if (Installer.MOVE.equals(p[0])) {
+                try {
+                    move(Paths.get(p[1]), Paths.get(p[2]));
+                    log("moved " + Paths.get(p[1]).getFileName() + " to " + Paths.get(p[2]).getParent());
+                } catch (Exception e) {
+                    log("not moved " + Paths.get(p[1]).getFileName() + ": " + e);
+                }
+                continue;
+            }
             if (Installer.DELETE.equals(p[0])) {
                 try {
                     delete(Paths.get(p[1]));
@@ -129,6 +138,23 @@ public final class Applier {
             try {
                 Files.deleteIfExists(jar);
                 return;
+            } catch (IOException e) {
+                if (attempt >= DELETE_ATTEMPTS) throw new IOException("the jar is still in use: " + e, e);
+                Thread.sleep(500);
+            }
+        }
+    }
+
+    /** Moves a jar the game has let go of, retrying while it's still locked. */
+    static void move(Path jar, Path target) throws IOException, InterruptedException {
+        if (!Files.exists(jar)) return;
+        Files.createDirectories(target.getParent());
+        for (int attempt = 1; ; attempt++) {
+            try {
+                Files.move(jar, target);
+                return;
+            } catch (java.nio.file.FileAlreadyExistsException e) {
+                throw e;
             } catch (IOException e) {
                 if (attempt >= DELETE_ATTEMPTS) throw new IOException("the jar is still in use: " + e, e);
                 Thread.sleep(500);
