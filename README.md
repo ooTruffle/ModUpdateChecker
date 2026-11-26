@@ -33,7 +33,7 @@ The update check can also run before the game starts, as a pre-launch command. I
 
 The mod copies itself to `config/modupdatechecker/prelaunch.jar` each time the game starts, so the command keeps working when it updates. Start the game once with the mod before adding it, or Prism will refuse to launch.
 
-`--gui` opens a window listing the updates to tick, with **Update N & launch**, **Launch without updating** and **Quit** (which cancels the launch). Problems in the mods folder are listed above the updates (see [Mod problems](#mod-problems)). It closes by itself when there's nothing to update or fix. Other options:
+`--gui` opens a window listing the updates to tick (**Changes** shows what's new in each), with **Update N & launch**, **Launch without updating** and **Quit** (which cancels the launch). Problems in the mods folder are listed above the updates (see [Mod problems](#mod-problems)). It closes by itself when there's nothing to update or fix. Other options:
 
 | Option | What it does |
 | --- | --- |

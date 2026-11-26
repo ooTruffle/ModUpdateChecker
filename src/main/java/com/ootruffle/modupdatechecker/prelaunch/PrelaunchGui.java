@@ -19,6 +19,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
 import java.awt.RenderingHints;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -34,10 +35,14 @@ import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JComponent;
+import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.UIManager;
@@ -324,6 +329,17 @@ final class PrelaunchGui {
             right.setOpaque(false);
             status = label(downloadable ? "" : "No file to download", TEXT_SECONDARY, font(Font.PLAIN, 12f));
             right.add(status);
+            if (mod.changelog != null) {
+                final JButton changes = button("Changes", false);
+                changes.setFont(font(Font.PLAIN, 12f));
+                changes.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
+                changes.setToolTipText("What's new in " + mod.latestVersion);
+                changes.addActionListener(e -> showChangelog(mod));
+                right.add(changes);
+                this.changes = changes;
+            } else {
+                this.changes = null;
+            }
             ignore = button("Ignore", false);
             ignore.setFont(font(Font.PLAIN, 12f));
             ignore.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10));
@@ -348,6 +364,7 @@ final class PrelaunchGui {
         private final JPanel card;
         private final Component gap;
         private final JButton ignore;
+        private final JButton changes;
 
         /** Skips this version (the same list the in-game screen uses) and takes the row away. */
         private void ignore() {
@@ -473,6 +490,67 @@ final class PrelaunchGui {
         }
     }
 
+    /** The latest version's changelog (from Modrinth or the GitHub release) in a window of its own. */
+    private JDialog showChangelog(ModStatus mod) {
+        final JDialog dialog = new JDialog(frame, mod.name + " " + mod.latestVersion, false);
+        final JPanel root = new JPanel(new BorderLayout(0, 12));
+        root.setBackground(PAGE);
+        root.setBorder(BorderFactory.createEmptyBorder(18, 20, 16, 20));
+
+        final JPanel header = new JPanel();
+        header.setOpaque(false);
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.add(label(mod.name, TEXT, font(Font.BOLD, 18f)));
+        header.add(Box.createVerticalStrut(3));
+        final String where = mod.source == ModStatus.Source.MODRINTH ? "Modrinth" : "GitHub · " + mod.githubRepo;
+        header.add(label("What's new in " + mod.latestVersion + " (you have " + mod.version + ")    " + where,
+                TEXT_SECONDARY, font(Font.PLAIN, 12f)));
+        root.add(header, BorderLayout.NORTH);
+
+        final JTextArea text = new JTextArea(mod.changelog);
+        text.setEditable(false);
+        text.setLineWrap(true);
+        text.setWrapStyleWord(true);
+        text.setBackground(CARD);
+        text.setForeground(TEXT);
+        text.setCaretColor(TEXT);
+        text.setSelectionColor(ACCENT);
+        text.setSelectedTextColor(Color.WHITE);
+        text.setFont(font(Font.PLAIN, 13f));
+        text.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
+        text.setCaretPosition(0);
+        final JScrollPane scroll = new JScrollPane(text);
+        scroll.setBorder(BorderFactory.createLineBorder(CARD_BORDER));
+        scroll.getViewport().setBackground(CARD);
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+        scroll.getVerticalScrollBar().setPreferredSize(new Dimension(8, 0));
+        scroll.getVerticalScrollBar().setBackground(CARD);
+        scroll.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        root.add(scroll, BorderLayout.CENTER);
+
+        final JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        footer.setOpaque(false);
+        if (mod.pageUrl != null) {
+            final JButton open = button("Open page", false);
+            open.addActionListener(e -> browse(mod.pageUrl));
+            footer.add(open);
+        }
+        final JButton close = button("Close", true);
+        close.addActionListener(e -> dialog.dispose());
+        footer.add(close);
+        root.add(footer, BorderLayout.SOUTH);
+
+        dialog.getRootPane().registerKeyboardAction(e -> dialog.dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+        dialog.getRootPane().setDefaultButton(close);
+        dialog.setContentPane(root);
+        dialog.setSize(600, 460);
+        dialog.setMinimumSize(new Dimension(420, 260));
+        dialog.setLocationRelativeTo(frame);
+        dialog.setVisible(true);
+        return dialog;
+    }
+
     private static void browse(String url) {
         try {
             Desktop.getDesktop().browse(URI.create(url));
@@ -567,6 +645,21 @@ final class PrelaunchGui {
                 if (!rows.isEmpty()) rows.get(0).ignore.doClick();
                 snapshot(dir, "gui-ignored.png");
                 skipButton.doClick();
+            } else if ("changelog".equals(System.getenv("MODUPDATECHECKER_GUI_AUTO"))) {
+                // Opens the first changelog, pictures it, then launches without updating.
+                for (Row r : rows) {
+                    if (r.changes == null) continue;
+                    final JDialog d = showChangelog(r.mod);
+                    final Timer shot = new Timer(500, ev -> {
+                        snapshot(d.getContentPane(), dir, "gui-changelog.png");
+                        skipButton.doClick();
+                    });
+                    shot.setRepeats(false);
+                    shot.start();
+                    return;
+                }
+                System.out.println("[ModUpdateChecker] No update has a changelog");
+                skipButton.doClick();
             } else if ("quit".equals(System.getenv("MODUPDATECHECKER_GUI_AUTO"))) {
                 quitButton.doClick();
             } else if ("update".equals(System.getenv("MODUPDATECHECKER_GUI_AUTO"))) {
@@ -589,8 +682,11 @@ final class PrelaunchGui {
     }
 
     private void snapshot(String dir, String name) {
+        snapshot(frame.getContentPane(), dir, name);
+    }
+
+    private static void snapshot(java.awt.Container c, String dir, String name) {
         try {
-            final java.awt.Container c = frame.getContentPane();
             final java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(c.getWidth(), c.getHeight(), java.awt.image.BufferedImage.TYPE_INT_RGB);
             final Graphics2D g = img.createGraphics();
             c.paint(g);

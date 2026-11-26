@@ -514,7 +514,7 @@ public final class UpdateChecker {
         if (text == null) return null;
         final String t = text.replace("\r", "").trim();
         if (t.isEmpty()) return null;
-        return t.length() > 2000 ? t.substring(0, 2000) + "..." : t;
+        return t.length() > 10000 ? t.substring(0, 10000) + "..." : t;
     }
 
     public static String hash(Path file, String algorithm) throws Exception {
