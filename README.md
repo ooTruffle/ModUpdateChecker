@@ -57,7 +57,7 @@ Polyfrost's OneClient launcher updates mods itself, so this mod isn't needed the
 | `checkOnStartup` | `true` | Check when the game starts |
 | `showMenuButton` | `true` | Show the Mod Updates button |
 | `githubToken` | `""` | Optional. GitHub allows 60 requests an hour without a token; a token with no scopes raises that to 5,000 |
-| `githubCacheMinutes` | `360` | How long a GitHub answer is reused |
+| `githubCacheMinutes` | `360` | How long a GitHub answer is reused (it is still dropped as soon as a newer release is tagged) |
 | `ignoredVersions` | `{}` | Mod id → the version you chose to skip |
 | `githubOverrides` | `{}` | Mod id → `"owner/repo"`, for mods that don't link their repository |
 | `skippedMods` | `[]` | Mod ids never checked |

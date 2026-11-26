@@ -312,7 +312,16 @@ public final class UpdateChecker {
             entry = cache.get(m.githubRepo);
         }
         final long maxAge = TimeUnit.MINUTES.toMillis(Math.max(0, Config.get().githubCacheMinutes));
-        if (entry == null || System.currentTimeMillis() - entry.time > maxAge) {
+        boolean refetch = entry == null || System.currentTimeMillis() - entry.time > maxAge;
+        if (!refetch) {
+            // A cached answer goes stale the moment a new release comes out, so check the latest
+            // tag first (github.com's redirect, which doesn't use up the API's rate limit).
+            final String latestTag = latestTag(m.githubRepo);
+            final String cachedTag = entry.status == 404 ? ""
+                    : entry.status == 200 && entry.body != null ? Json.str(Json.obj(Json.parse(entry.body)), "tag_name") : null;
+            if (latestTag != null && !latestTag.equals(cachedTag)) refetch = true;
+        }
+        if (refetch) {
             final HttpRequest.Builder req = HttpRequest.newBuilder(URI.create("https://api.github.com/repos/" + m.githubRepo + "/releases/latest"))
                     .timeout(Duration.ofSeconds(20))
                     .header("User-Agent", USER_AGENT)
@@ -359,6 +368,35 @@ public final class UpdateChecker {
             if (digest.startsWith("sha256:")) m.downloadHash = digest;
         }
         m.state = ModStatus.State.UPDATE_AVAILABLE;
+    }
+
+    private static final HttpClient NO_REDIRECTS = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NEVER)
+            .build();
+
+    /**
+     * The repo's latest release tag, read from where github.com/owner/repo/releases/latest
+     * redirects to: "" when it has no releases, null when that couldn't be worked out.
+     */
+    private static String latestTag(String repo) {
+        try {
+            final HttpRequest req = HttpRequest.newBuilder(URI.create("https://github.com/" + repo + "/releases/latest"))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("User-Agent", USER_AGENT)
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                    .build();
+            final HttpResponse<Void> res = NO_REDIRECTS.send(req, HttpResponse.BodyHandlers.discarding());
+            if (res.statusCode() / 100 != 3) return null;
+            final String location = res.headers().firstValue("Location").orElse(null);
+            if (location == null) return null;
+            final String path = URI.create(location).getPath();
+            final int i = path.indexOf("/releases/tag/");
+            if (i >= 0) return path.substring(i + "/releases/tag/".length());
+            return path.endsWith("/releases") ? "" : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /** The release jar most like the installed one, or null if it's unclear which to take. */
