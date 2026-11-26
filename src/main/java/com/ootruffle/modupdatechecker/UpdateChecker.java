@@ -254,6 +254,11 @@ public final class UpdateChecker {
                 final String sha1 = Json.str(Json.obj(file, "hashes"), "sha1");
                 if (!sha1.isEmpty()) m.downloadHash = "sha1:" + sha1;
             }
+            m.modrinthProject = project;
+            m.modrinthVersion = Json.str(next, "id");
+            m.modrinthLoaders = strings(Json.arr(next, "loaders"));
+            m.modrinthGameVersions = strings(Json.arr(next, "game_versions"));
+            m.modrinthReleaseType = Json.str(next, "version_type");
             m.state = ModStatus.State.UPDATE_AVAILABLE;
         }
     }
@@ -269,6 +274,12 @@ public final class UpdateChecker {
         if (tags.contains("ornithe")) return List.of("ornithe");
         final List<String> out = new ArrayList<>();
         for (String l : List.of("fabric", "legacy-fabric")) if (tags.contains(l)) out.add(l);
+        return out;
+    }
+
+    private static List<String> strings(List<Object> values) {
+        final List<String> out = new ArrayList<>();
+        for (Object o : values) if (o instanceof String s) out.add(s);
         return out;
     }
 

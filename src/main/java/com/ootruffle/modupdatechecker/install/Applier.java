@@ -44,7 +44,7 @@ public final class Applier {
         final List<String> lines = Files.readAllLines(pendingFile, StandardCharsets.UTF_8);
         for (String line : lines) {
             final String[] p = line.split("\t");
-            if (p.length != 3) continue;
+            if (p.length != 3 && p.length != 4) continue;
             if (Installer.DELETE.equals(p[0])) {
                 try {
                     delete(Paths.get(p[1]));
@@ -59,6 +59,15 @@ public final class Applier {
                 log("installed " + Paths.get(p[2]).getFileName());
             } catch (Exception e) {
                 log("not installed " + Paths.get(p[2]).getFileName() + ": " + e);
+                continue;
+            }
+            if (p.length == 4) {
+                try {
+                    applyMeta(Paths.get(p[3]), Paths.get(p[1]), Paths.get(p[2]));
+                    log("  updated Prism's metadata");
+                } catch (Exception e) {
+                    log("  Prism's metadata not updated: " + e);
+                }
             }
         }
         Files.deleteIfExists(pendingFile);
@@ -99,6 +108,19 @@ public final class Applier {
             }
         }
         Files.deleteIfExists(staged);
+    }
+
+    /**
+     * Puts the staged Prism metadata (see {@link com.ootruffle.modupdatechecker.core.PrismMeta}) for
+     * the installed [newJar] in the mods folder's .index, replacing the old jar's.
+     */
+    static void applyMeta(Path meta, Path oldJar, Path newJar) throws IOException {
+        final String toml = Files.readString(meta, StandardCharsets.UTF_8);
+        final String file = meta.getFileName().toString();
+        com.ootruffle.modupdatechecker.core.PrismMeta.install(newJar.getParent(), toml,
+                oldJar.getFileName().toString(), newJar.getFileName().toString(),
+                file.substring(0, file.length() - ".pw.toml".length()));
+        Files.deleteIfExists(meta);
     }
 
     /** Deletes a jar the game has let go of, retrying while it's still locked. */

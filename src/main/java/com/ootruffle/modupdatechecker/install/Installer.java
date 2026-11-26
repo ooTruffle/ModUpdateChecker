@@ -4,6 +4,7 @@ import com.ootruffle.modupdatechecker.Config;
 import com.ootruffle.modupdatechecker.ModStatus;
 import com.ootruffle.modupdatechecker.core.Env;
 import com.ootruffle.modupdatechecker.core.JarScanner;
+import com.ootruffle.modupdatechecker.core.PrismMeta;
 import com.ootruffle.modupdatechecker.core.Versions;
 import com.ootruffle.modupdatechecker.UpdateChecker;
 import java.io.InputStream;
@@ -141,7 +142,10 @@ public final class Installer {
         try {
             checkTarget(mod.jar, mod.jar.resolveSibling(safeName(mod.downloadName)), mod.id);
             final Path staged = fetch(mod);
-            Applier.apply(staged, mod.jar, mod.jar.resolveSibling(safeName(mod.downloadName)));
+            final Path meta = prismMeta(mod, staged);
+            final Path newJar = mod.jar.resolveSibling(safeName(mod.downloadName));
+            Applier.apply(staged, mod.jar, newJar);
+            if (meta != null) Applier.applyMeta(meta, mod.jar, newJar);
             mod.state = ModStatus.State.DOWNLOADED;
             return true;
         } catch (Exception e) {
@@ -183,10 +187,13 @@ public final class Installer {
         final String name = safeName(mod.downloadName);
         checkTarget(mod.jar, mod.jar.resolveSibling(name), mod.id); // Before downloading anything.
         final Path staged = fetch(mod);
+        final Path meta = prismMeta(mod, staged);
         final Path newJar = mod.jar.resolveSibling(name);
         synchronized (pending) {
             pending.removeIf(p -> p[1].equals(mod.jar.toString()));
-            pending.add(new String[] {staged.toString(), mod.jar.toString(), newJar.toString()});
+            pending.add(meta == null
+                    ? new String[] {staged.toString(), mod.jar.toString(), newJar.toString()}
+                    : new String[] {staged.toString(), mod.jar.toString(), newJar.toString(), meta.toString()});
             writePending();
             if (!hookAdded) {
                 hookAdded = true;
@@ -194,6 +201,29 @@ public final class Installer {
             }
         }
         Env.log.info("Downloaded {} {}; it's installed when the game closes", mod.name, mod.latestVersion);
+    }
+
+    /**
+     * In a Prism instance, for a Modrinth update: writes the Prism metadata for the new jar next to
+     * the download (staged/&lt;mod id&gt;.pw.toml), so Prism shows it as from Modrinth once it's
+     * installed. Returns the file, or null if there's none to write.
+     */
+    private static Path prismMeta(ModStatus mod, Path staged) {
+        if (mod.source != ModStatus.Source.MODRINTH || mod.modrinthProject == null || mod.modrinthVersion == null
+                || !PrismMeta.isPrismInstance(Env.gameDir)) {
+            return null;
+        }
+        try {
+            final String toml = PrismMeta.modrinthToml(mod.name, safeName(mod.downloadName), mod.downloadUrl,
+                    UpdateChecker.hash(staged, "SHA-512"), mod.modrinthProject, mod.modrinthVersion,
+                    mod.modrinthLoaders, mod.modrinthGameVersions, mod.modrinthReleaseType);
+            final Path meta = stagedDir().resolve(mod.id.replaceAll("[^A-Za-z0-9._-]", "_") + ".pw.toml");
+            Files.writeString(meta, toml, StandardCharsets.UTF_8);
+            return meta;
+        } catch (Exception e) {
+            Env.log.warn("Couldn't prepare Prism's metadata for {}: {}", mod.name, e.toString());
+            return null;
+        }
     }
 
     /** Downloads [mod]'s update into the staging folder and checks it, returning the file. */

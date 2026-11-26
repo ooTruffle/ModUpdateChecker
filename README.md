@@ -6,6 +6,7 @@ A Minecraft 1.8.9 [Ornithe](https://ornithemc.net) mod that checks every install
 - **GitHub for the rest.** Mods that aren't on Modrinth are checked against the latest GitHub release of the repository linked in their `fabric.mod.json`.
 - **Safe installs.** Downloads are checked against their published hash, and must be a Fabric/Ornithe mod with the same mod id, so a wrong link or a Forge release can't replace your mod. Jars are swapped after the game closes, since Windows locks a running game's jars.
 - **Updates itself** the same way, from this repository's releases.
+- **Keeps Prism's metadata right.** In a Prism Launcher instance, a mod updated from Modrinth gets a `mods/.index/*.pw.toml` file for its new jar (replacing the old jar's), so Prism lists it as from Modrinth instead of "Unknown" and can update it itself.
 
 ## Requirements
 

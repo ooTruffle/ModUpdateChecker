@@ -41,6 +41,12 @@ public final class ModStatus {
     public volatile String downloadName;
     /** Expected hash of the download ("sha1:..." or "sha256:..."), or null. */
     public volatile String downloadHash;
+    /** For a Modrinth update: its project and version ids, loaders, game versions and type (for Prism's metadata). */
+    public volatile String modrinthProject;
+    public volatile String modrinthVersion;
+    public volatile java.util.List<String> modrinthLoaders;
+    public volatile java.util.List<String> modrinthGameVersions;
+    public volatile String modrinthReleaseType;
     public volatile String error;
     /** Download progress, 0..1. */
     public volatile float progress;
