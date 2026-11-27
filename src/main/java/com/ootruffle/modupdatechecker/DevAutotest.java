@@ -32,7 +32,6 @@ public final class DevAutotest {
     /** Called as the mod starts, before the OneConfig page is built (it checks what to hide then). */
     static void early() {
         if (!FabricLoader.getInstance().isDevelopmentEnvironment()) return;
-        if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_ONECLIENT"))) OneClient.devShow = true;
         if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_PRISM"))) PrismIntegration.devShow = true;
     }
 
@@ -58,8 +57,7 @@ public final class DevAutotest {
                 shot(mc, "autotest-title.png");
                 devTheme();
                 if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_PRISM"))) PrismIntegration.devShow = true;
-                if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_ONECLIENT"))) OneClient.devShow = true;
-                mc.displayGuiScreen(UpdatesScreen.create(mc.currentScreen));
+                        mc.displayGuiScreen(UpdatesScreen.create(mc.currentScreen));
                 step++;
                 wait = 60;
             }

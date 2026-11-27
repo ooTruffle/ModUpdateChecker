@@ -58,7 +58,9 @@ Fixing one moves the jars to `removed-mods`, next to `mods`, so they can be put 
 
 ## OneClient
 
-Polyfrost's OneClient launcher updates mods itself, so this mod isn't needed there. When OneClient starts the game, the mod says so and offers to remove itself.
+Works in Polyfrost's OneClient launcher too. OneClient keeps the mods in its bundles (HUD, QoL, Performance, Utility...) up to date itself, so those are left to it: any jar listed in one of OneClient's bundles for your Minecraft version (by hash, file name or Modrinth project) isn't checked or updated, and the summary says how many were left to OneClient. Every other mod in the cluster, the ones you added yourself, is checked and updated as usual.
+
+OneClient links a cluster's mods to the files in its own store, so updates always replace a jar with a new file rather than writing into the old one.
 
 ## Settings
 

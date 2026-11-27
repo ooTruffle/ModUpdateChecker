@@ -47,6 +47,8 @@ public final class ModStatus {
     public volatile java.util.List<String> modrinthLoaders;
     public volatile java.util.List<String> modrinthGameVersions;
     public volatile String modrinthReleaseType;
+    /** The Modrinth project this jar was found in, or null. */
+    public volatile String modrinthProjectId;
     public volatile String error;
     /** Download progress, 0..1. */
     public volatile float progress;

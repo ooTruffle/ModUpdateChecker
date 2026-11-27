@@ -43,8 +43,6 @@ public final class Config {
     /** "Not now" on the in-game offer to set up the pre-launch check in Prism. */
     public boolean prismPromptDismissed = false;
 
-    /** "Don't show again" on the notice that OneClient updates mods itself. */
-    public boolean oneClientNoticeDismissed = false;
 
     private static Config instance = new Config();
 
@@ -79,7 +77,6 @@ public final class Config {
                     if (e.getValue() instanceof String s) c.githubOverrides.put(e.getKey(), s);
                 }
                 c.prismPromptDismissed = Json.bool(o, "prismPromptDismissed", false);
-                c.oneClientNoticeDismissed = Json.bool(o, "oneClientNoticeDismissed", false);
                 for (Object id : Json.arr(o, "skippedMods")) {
                     if (id instanceof String s) c.skippedMods.add(s);
                 }
@@ -103,7 +100,6 @@ public final class Config {
         o.put("githubOverrides", c.githubOverrides);
         o.put("skippedMods", c.skippedMods);
         o.put("prismPromptDismissed", c.prismPromptDismissed);
-        o.put("oneClientNoticeDismissed", c.oneClientNoticeDismissed);
         final Path file = file();
         try {
             Files.createDirectories(file.getParent());

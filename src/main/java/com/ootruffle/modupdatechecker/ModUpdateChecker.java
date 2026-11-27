@@ -25,7 +25,6 @@ public final class ModUpdateChecker implements ModInitializer {
     public static final Logger LOGGER = LogManager.getLogger("ModUpdateChecker");
 
     private static volatile boolean openScreen;
-    private static boolean oneClientNoticeShown;
     private static boolean problemsShown;
 
     @Override
@@ -94,13 +93,6 @@ public final class ModUpdateChecker implements ModInitializer {
             problemsShown = true;
             final Minecraft mc = Minecraft.getMinecraft();
             mc.displayGuiScreen(UpdatesScreen.create(mc.currentScreen));
-        }
-        if (!oneClientNoticeShown && Minecraft.getMinecraft().currentScreen instanceof net.minecraft.client.gui.GuiMainMenu
-                && OneClient.shouldNotify()) {
-            oneClientNoticeShown = true;
-            if (!OneConfigCompat.notifyOneClient(OneClient.TITLE, OneClient.MESSAGE)) {
-                LOGGER.info("{}: {}", OneClient.TITLE, OneClient.MESSAGE); // No OneConfig: the updates screen says it too.
-            }
         }
         OneConfigCompat.onClientTick();
         DevAutotest.tick();

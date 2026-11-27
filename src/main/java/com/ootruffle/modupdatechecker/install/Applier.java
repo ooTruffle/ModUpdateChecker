@@ -94,23 +94,23 @@ public final class Applier {
             }
             Installer.checkTarget(oldJar, newJar, update == null ? null : update.id);
         }
-        if (!sameName) {
-            // A .tmp name first: Fabric only loads *.jar, so a half-copied file is never picked up.
-            final Path tmp = newJar.resolveSibling(newJar.getFileName() + ".tmp");
-            Files.copy(staged, tmp, StandardCopyOption.REPLACE_EXISTING);
-            Files.move(tmp, newJar, StandardCopyOption.REPLACE_EXISTING);
-        }
+        // A .tmp name first: Fabric only loads *.jar, so a half-copied file is never picked up. Moving
+        // it over the old jar (rather than copying into it) also leaves a hard-linked jar's other
+        // copy alone: OneClient links a cluster's mods to the files in its own store.
+        final Path tmp = newJar.resolveSibling(newJar.getFileName() + ".tmp");
+        Files.copy(staged, tmp, StandardCopyOption.REPLACE_EXISTING);
+        if (!sameName) Files.move(tmp, newJar, StandardCopyOption.REPLACE_EXISTING);
         for (int attempt = 1; ; attempt++) {
             try {
                 if (sameName) {
-                    Files.copy(staged, newJar, StandardCopyOption.REPLACE_EXISTING);
+                    Files.move(tmp, newJar, StandardCopyOption.REPLACE_EXISTING);
                 } else {
                     Files.deleteIfExists(oldJar);
                 }
                 break;
             } catch (IOException e) {
                 if (attempt >= DELETE_ATTEMPTS) {
-                    if (!sameName) Files.deleteIfExists(newJar);
+                    Files.deleteIfExists(sameName ? tmp : newJar);
                     throw new IOException("the old jar is still in use: " + e, e);
                 }
                 Thread.sleep(500);

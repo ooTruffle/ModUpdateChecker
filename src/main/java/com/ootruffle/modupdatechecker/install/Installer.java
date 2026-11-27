@@ -92,42 +92,6 @@ public final class Installer {
         return false;
     }
 
-    /** Deletes this mod's jar when the game closes. Returns false if it can't (dev runs). */
-    public static boolean removeSelfOnExit() {
-        if (Env.selfPaths.size() != 1 || !Files.isRegularFile(Env.selfPaths.get(0))) return false;
-        final String self = Env.selfPaths.get(0).toString();
-        synchronized (pending) {
-            // Removing wins over an update of this mod.
-            pending.removeIf(p -> p[1].equals(self));
-            pending.add(new String[] {DELETE, self, self});
-            try {
-                Files.createDirectories(stagedDir());
-            } catch (Exception ignored) {
-            }
-            writePending();
-            if (!hookAdded) {
-                hookAdded = true;
-                Runtime.getRuntime().addShutdownHook(new Thread(Installer::startApplier, "ModUpdateChecker-Apply"));
-            }
-        }
-        Env.log.info("Mod Update Checker will be removed when the game closes");
-        return true;
-    }
-
-    public static boolean selfRemovalPending() {
-        synchronized (pending) {
-            for (String[] p : pending) if (DELETE.equals(p[0])) return true; // Only ever this mod's own jar.
-        }
-        return false;
-    }
-
-    public static void cancelSelfRemoval() {
-        synchronized (pending) {
-            pending.removeIf(p -> DELETE.equals(p[0]));
-            writePending();
-        }
-    }
-
     public static boolean hasPending() {
         synchronized (pending) {
             return !pending.isEmpty();

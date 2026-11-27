@@ -4,6 +4,7 @@ import com.ootruffle.modupdatechecker.core.Env;
 import com.ootruffle.modupdatechecker.core.JarScanner;
 import com.ootruffle.modupdatechecker.core.Json;
 import com.ootruffle.modupdatechecker.core.ModProblems;
+import com.ootruffle.modupdatechecker.core.OneClientBundles;
 import com.ootruffle.modupdatechecker.install.ModRemover;
 import com.ootruffle.modupdatechecker.core.Versions;
 import java.io.InputStream;
@@ -111,7 +112,11 @@ public final class UpdateChecker {
         summary = "Looking at your mods...";
         final ModProblems.Result problems = Config.get().checkModProblems ? ModProblems.scan() : ModProblems.clear();
         ModProblems.log(problems);
-        final List<ModStatus> found = new ArrayList<>();
+        // In a OneClient cluster, OneClient updates its bundles' mods itself: leave those alone.
+        final OneClientBundles bundles = OneClientBundles.load(Env.gameDir, Env.minecraftVersion);
+        final Map<ModStatus, String> hashes = new HashMap<>();
+        int managed = 0;
+        List<ModStatus> found = new ArrayList<>();
         for (ModStatus m : Env.scanner.get()) {
             if (Config.get().skippedMods.contains(m.id) || ModProblems.REPLACED.containsKey(m.id) || ModRemover.isRemoved(m.jar)) continue;
             // With two copies of a mod, check (and update) the one that's kept.
@@ -123,6 +128,18 @@ public final class UpdateChecker {
                 } catch (Exception ignored) {
                 }
             }
+            if (!bundles.isEmpty()) {
+                String sha1 = null;
+                try {
+                    sha1 = hash(m.jar, "SHA-1");
+                    hashes.put(m, sha1);
+                } catch (Exception ignored) {
+                }
+                if (bundles.manages(sha1, m.jar.getFileName().toString())) {
+                    managed++;
+                    continue;
+                }
+            }
             found.add(m);
         }
         found.sort((a, b) -> a.name.compareToIgnoreCase(b.name));
@@ -132,17 +149,29 @@ public final class UpdateChecker {
         final Map<String, ModStatus> byHash = new LinkedHashMap<>();
         for (ModStatus m : found) {
             try {
-                byHash.put(hash(m.jar, "SHA-1"), m);
+                final String known = hashes.get(m);
+                byHash.put(known != null ? known : hash(m.jar, "SHA-1"), m);
             } catch (Exception e) {
                 m.state = ModStatus.State.ERROR;
                 m.error = "Couldn't read the jar: " + e.getMessage();
             }
         }
         try {
-            modrinth(byHash);
+            modrinth(byHash, bundles);
         } catch (Exception e) {
             Env.log.warn("Modrinth lookup failed: {}", e.toString());
         }
+        // A bundled mod whose jar differs from the bundle's (OneClient hasn't applied a bundle update yet).
+        if (!bundles.isEmpty()) {
+            final List<ModStatus> kept = new ArrayList<>(found); // A copy: the UI may be reading found.
+            kept.removeIf(m -> bundles.managesProject(m.modrinthProjectId));
+            if (kept.size() < found.size()) {
+                managed += found.size() - kept.size();
+                found = kept;
+                mods = kept;
+            }
+        }
+        if (managed > 0) Env.log.info("OneClient keeps {} of these mods up to date itself; leaving them to it", managed);
 
         final List<ModStatus> rest = new ArrayList<>();
         for (ModStatus m : found) {
@@ -182,7 +211,8 @@ public final class UpdateChecker {
                     m.error != null ? " (" + m.error + ")" : "");
         }
         summary = found.size() + " mods checked · " + (updates == 0 ? "everything is up to date" : updates + (updates == 1 ? " update" : " updates"))
-                + (notFound > 0 ? " · " + notFound + " not found" : "");
+                + (notFound > 0 ? " · " + notFound + " not found" : "")
+                + (managed > 0 ? " · " + managed + " updated by OneClient" : "");
         if (Env.verbose) Env.log.info("Update check done: {}", summary);
     }
 
@@ -212,7 +242,7 @@ public final class UpdateChecker {
 
     // ---- Modrinth ----
 
-    private static void modrinth(Map<String, ModStatus> byHash) throws Exception {
+    private static void modrinth(Map<String, ModStatus> byHash, OneClientBundles bundles) throws Exception {
         if (byHash.isEmpty()) return;
         final Map<String, Object> lookup = new LinkedHashMap<>();
         lookup.put("hashes", new ArrayList<>(byHash.keySet()));
@@ -244,6 +274,8 @@ public final class UpdateChecker {
             final Map<String, Object> cur = Json.obj(current, hash);
             m.source = ModStatus.Source.MODRINTH;
             final String project = Json.str(cur, "project_id");
+            m.modrinthProjectId = project;
+            if (bundles.managesProject(project)) continue; // Dropped by check(): OneClient updates it.
             m.pageUrl = "https://modrinth.com/mod/" + project;
             final Map<String, Object> next = Json.obj(latest, hash);
             if (next.isEmpty()) {

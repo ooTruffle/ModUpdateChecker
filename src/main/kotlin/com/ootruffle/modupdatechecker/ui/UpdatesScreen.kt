@@ -52,7 +52,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ootruffle.modupdatechecker.Config
 import com.ootruffle.modupdatechecker.ModStatus
-import com.ootruffle.modupdatechecker.OneClient
 import com.ootruffle.modupdatechecker.PrismIntegration
 import com.ootruffle.modupdatechecker.ModStatus.State
 import com.ootruffle.modupdatechecker.UpdateChecker
@@ -346,8 +345,6 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
 
             if (problems > 0 && filter != Filter.PROBLEMS) {
                 ProblemsBanner(problems)
-            } else if (OneClient.shouldNotify() || OneClient.removalRequested()) {
-                OneClientBanner()
             } else if (PrismIntegration.offer() || PrismIntegration.requested()) {
                 PrismBanner()
             }
@@ -499,39 +496,6 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
                 for ((text, color) in lines) Text(text, color = color, size = 12.sp)
             }
             Button(action) { onClick() }
-        }
-    }
-
-    /** OneClient updates mods itself: suggests removing this mod (only shown under OneClient). */
-    @Composable
-    private fun OneClientBanner() {
-        @Suppress("UNUSED_VARIABLE") val refresh = frame
-        val removing = OneClient.removalRequested()
-        Row(
-            Modifier.fillMaxWidth()
-                .clip(CardShape)
-                .background(Yellow.copy(alpha = 0.10f))
-                .border(1.dp, Yellow.copy(alpha = 0.45f), CardShape)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(if (removing) "Mod Update Checker will be removed when you close the game" else "OneClient already updates your mods",
-                    size = 14.sp, weight = FontWeight.SemiBold)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    if (removing) "OneClient keeps your mods up to date from now on."
-                    else "This mod isn't needed here. Remove it to avoid two updaters changing the same mods.",
-                    color = TextSecondary, size = 12.sp, maxLines = 2,
-                )
-            }
-            if (removing) {
-                Button("Undo") { OneClient.undoRemoval() }
-            } else {
-                Button("Keep it") { OneClient.dismiss() }
-                Button("Remove", primary = true) { OneClient.removeThisMod() }
-            }
         }
     }
 

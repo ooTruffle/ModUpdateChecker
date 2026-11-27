@@ -35,21 +35,6 @@ public final class OneConfigCompat {
         return active;
     }
 
-    /**
-     * The "OneClient updates your mods" notification, with Remove and Don't show again. Returns
-     * false without OneConfig (or if it couldn't be shown).
-     */
-    public static boolean notifyOneClient(String title, String message) {
-        if (!active) return false;
-        try {
-            ModUpdateCheckerPage.notifyOneClient(title, message);
-            return true;
-        } catch (Throwable t) {
-            ModUpdateChecker.LOGGER.warn("Couldn't show a OneConfig notification: {}", t.toString());
-            return false;
-        }
-    }
-
     // Only static calls into ModUpdateCheckerPage here: anything that hands its INSTANCE to a
     // OneConfig method makes the JVM load OneConfig's classes when this class loads, which crashes
     // the game without OneConfig.

@@ -105,22 +105,6 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
         sync();
     }
 
-    static void notifyOneClient(String title, String message) {
-        Notifications.builder(title, message)
-                .type(org.polyfrost.oneconfig.api.notifications.v1.NotificationType.WARNING)
-                .persistent()
-                .action(new org.polyfrost.oneconfig.api.notifications.v1.NotificationAction("Remove", true, () -> {
-                    if (com.ootruffle.modupdatechecker.OneClient.removeThisMod()) {
-                        Notifications.success("Mod Update Checker", "It'll be removed when you close the game.");
-                    } else {
-                        Notifications.warning("Mod Update Checker", "Couldn't remove it automatically; delete its jar from the mods folder.");
-                    }
-                }))
-                .action(new org.polyfrost.oneconfig.api.notifications.v1.NotificationAction("Don't show again", false,
-                        com.ootruffle.modupdatechecker.OneClient::dismiss))
-                .send();
-    }
-
     static void devOpen() {
         ScreensKt.openUI(INSTANCE);
     }
