@@ -5,6 +5,7 @@ import com.ootruffle.modupdatechecker.core.JarScanner;
 import com.ootruffle.modupdatechecker.core.Json;
 import com.ootruffle.modupdatechecker.core.ModProblems;
 import com.ootruffle.modupdatechecker.core.OneClientBundles;
+import com.ootruffle.modupdatechecker.core.OneClientLauncher;
 import com.ootruffle.modupdatechecker.install.ModRemover;
 import com.ootruffle.modupdatechecker.core.Versions;
 import java.io.InputStream;
@@ -112,11 +113,11 @@ public final class UpdateChecker {
         summary = "Looking at your mods...";
         final ModProblems.Result problems = Config.get().checkModProblems ? ModProblems.scan() : ModProblems.clear();
         ModProblems.log(problems);
-        // In a OneClient cluster, OneClient updates its bundles' mods itself: leave those alone.
-        final OneClientBundles bundles = OneClientBundles.load(Env.gameDir, Env.minecraftVersion);
+        // In a OneClient cluster, mods from OneClient's bundles are checked too, just labelled: when
+        // one is updated here, OneClient switches the bundle's copy off and keeps the new jar.
+        final OneClientBundles bundles = OneClientBundles.load(OneClientLauncher.dataDir(Env.modsDir(), Env.gameDir), Env.minecraftVersion);
         final Map<ModStatus, String> hashes = new HashMap<>();
-        int managed = 0;
-        List<ModStatus> found = new ArrayList<>();
+        final List<ModStatus> found = new ArrayList<>();
         for (ModStatus m : Env.scanner.get()) {
             if (Config.get().skippedMods.contains(m.id) || ModProblems.REPLACED.containsKey(m.id) || ModRemover.isRemoved(m.jar)) continue;
             // With two copies of a mod, check (and update) the one that's kept.
@@ -135,10 +136,7 @@ public final class UpdateChecker {
                     hashes.put(m, sha1);
                 } catch (Exception ignored) {
                 }
-                if (bundles.manages(sha1, m.jar.getFileName().toString())) {
-                    managed++;
-                    continue;
-                }
+                if (bundles.manages(sha1, m.jar.getFileName().toString())) m.oneClientBundle = true;
             }
             found.add(m);
         }
@@ -157,21 +155,18 @@ public final class UpdateChecker {
             }
         }
         try {
-            modrinth(byHash, bundles);
+            modrinth(byHash);
         } catch (Exception e) {
             Env.log.warn("Modrinth lookup failed: {}", e.toString());
         }
-        // A bundled mod whose jar differs from the bundle's (OneClient hasn't applied a bundle update yet).
         if (!bundles.isEmpty()) {
-            final List<ModStatus> kept = new ArrayList<>(found); // A copy: the UI may be reading found.
-            kept.removeIf(m -> bundles.managesProject(m.modrinthProjectId));
-            if (kept.size() < found.size()) {
-                managed += found.size() - kept.size();
-                found = kept;
-                mods = kept;
+            int bundled = 0;
+            for (ModStatus m : found) {
+                if (bundles.managesProject(m.modrinthProjectId)) m.oneClientBundle = true;
+                if (m.oneClientBundle) bundled++;
             }
+            if (bundled > 0) Env.log.info("{} of these mods come from OneClient's bundles", bundled);
         }
-        if (managed > 0) Env.log.info("OneClient keeps {} of these mods up to date itself; leaving them to it", managed);
 
         final List<ModStatus> rest = new ArrayList<>();
         for (ModStatus m : found) {
@@ -211,8 +206,7 @@ public final class UpdateChecker {
                     m.error != null ? " (" + m.error + ")" : "");
         }
         summary = found.size() + " mods checked · " + (updates == 0 ? "everything is up to date" : updates + (updates == 1 ? " update" : " updates"))
-                + (notFound > 0 ? " · " + notFound + " not found" : "")
-                + (managed > 0 ? " · " + managed + " updated by OneClient" : "");
+                + (notFound > 0 ? " · " + notFound + " not found" : "");
         if (Env.verbose) Env.log.info("Update check done: {}", summary);
     }
 
@@ -242,7 +236,7 @@ public final class UpdateChecker {
 
     // ---- Modrinth ----
 
-    private static void modrinth(Map<String, ModStatus> byHash, OneClientBundles bundles) throws Exception {
+    private static void modrinth(Map<String, ModStatus> byHash) throws Exception {
         if (byHash.isEmpty()) return;
         final Map<String, Object> lookup = new LinkedHashMap<>();
         lookup.put("hashes", new ArrayList<>(byHash.keySet()));
@@ -275,7 +269,6 @@ public final class UpdateChecker {
             m.source = ModStatus.Source.MODRINTH;
             final String project = Json.str(cur, "project_id");
             m.modrinthProjectId = project;
-            if (bundles.managesProject(project)) continue; // Dropped by check(): OneClient updates it.
             m.pageUrl = "https://modrinth.com/mod/" + project;
             final Map<String, Object> next = Json.obj(latest, hash);
             if (next.isEmpty()) {
@@ -398,7 +391,17 @@ public final class UpdateChecker {
         if (entry.status != 200 || entry.body == null) {
             throw new Exception("GitHub answered " + entry.status);
         }
-        final Map<String, Object> release = Json.obj(Json.parse(entry.body));
+        Map<String, Object> release = Json.obj(Json.parse(entry.body));
+        if (forOtherMinecraft(release, Env.minecraftVersion)) {
+            // Repos that build for several Minecraft versions: the latest release may be for
+            // another one, so look for the newest one made for this version instead.
+            release = releaseForMinecraft(m.githubRepo, cache, refetch);
+            if (release == null) {
+                m.state = ModStatus.State.NOT_FOUND;
+                m.error = "Its latest releases are for other Minecraft versions";
+                return;
+            }
+        }
         final String tag = Json.str(release, "tag_name");
         m.latestVersion = tag;
         m.changelog = trim(Json.str(release, "body"));
@@ -418,6 +421,76 @@ public final class UpdateChecker {
             if (digest.startsWith("sha256:")) m.downloadHash = digest;
         }
         m.state = ModStatus.State.UPDATE_AVAILABLE;
+    }
+
+    /** A Minecraft version written after "+" or "mc" (as in "2.4.0+26.3" or "1.2+mc1.8.9"). */
+    private static final Pattern MC_TAG = Pattern.compile("(?:\\+|mc)(?:mc)?[-_]?(1\\.\\d{1,2}(?:\\.\\d{1,2})?|2\\d\\.\\d{1,2}(?:\\.\\d{1,2})?)(?![\\d.]*\\d)",
+            Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Whether a release is marked as being for other Minecraft versions only: its tag, title or jar
+     * names name a Minecraft version, and none of them is this one. Unmarked releases count as fine.
+     */
+    static boolean forOtherMinecraft(Map<String, Object> release, String mc) {
+        final List<String> texts = new ArrayList<>();
+        texts.add(Json.str(release, "tag_name"));
+        texts.add(Json.str(release, "name"));
+        for (Object a : Json.arr(release, "assets")) {
+            final String name = Json.str(Json.obj(a), "name");
+            if (name.toLowerCase(Locale.ROOT).endsWith(".jar")) texts.add(name);
+        }
+        boolean marked = false;
+        for (String text : texts) {
+            final Matcher matcher = MC_TAG.matcher(text);
+            while (matcher.find()) {
+                marked = true;
+                if (matcher.group(1).equals(mc)) return false;
+            }
+        }
+        return marked;
+    }
+
+    /**
+     * The newest full release in a repo's recent releases that isn't for another Minecraft version,
+     * or null. Cached like the latest release, and asked again whenever that changed.
+     */
+    private static Map<String, Object> releaseForMinecraft(String repo, Map<String, CacheEntry> cache, boolean latestChanged) throws Exception {
+        final String key = repo + "@" + Env.minecraftVersion;
+        CacheEntry entry;
+        synchronized (cache) {
+            entry = cache.get(key);
+        }
+        final long maxAge = TimeUnit.MINUTES.toMillis(Math.max(0, Config.get().githubCacheMinutes));
+        if (latestChanged || entry == null || System.currentTimeMillis() - entry.time > maxAge) {
+            final HttpRequest.Builder req = HttpRequest.newBuilder(URI.create("https://api.github.com/repos/" + repo + "/releases?per_page=30"))
+                    .timeout(Duration.ofSeconds(20))
+                    .header("User-Agent", USER_AGENT)
+                    .header("Accept", "application/vnd.github+json");
+            final String token = Config.get().githubToken;
+            if (token != null && !token.trim().isEmpty()) req.header("Authorization", "Bearer " + token.trim());
+            final HttpResponse<String> res = HTTP.send(req.build(), HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() == 403 || res.statusCode() == 429) {
+                throw new Exception("GitHub's rate limit was hit; try again later or set githubToken in the config");
+            }
+            if (res.statusCode() != 200) throw new Exception("GitHub answered " + res.statusCode());
+            Map<String, Object> found = null;
+            for (Object r : Json.arr(Json.parse(res.body()))) {
+                final Map<String, Object> release = Json.obj(r);
+                if (Json.bool(release, "draft", false) || Json.bool(release, "prerelease", false)) continue;
+                if (!forOtherMinecraft(release, Env.minecraftVersion)) {
+                    found = release;
+                    break;
+                }
+            }
+            entry = new CacheEntry();
+            entry.time = System.currentTimeMillis();
+            entry.status = found == null ? 404 : 200;
+            entry.body = found == null ? null : Json.write(found, false);
+            synchronized (cache) {
+                cache.put(key, entry);
+            }
+        }
+        return entry.status == 200 && entry.body != null ? Json.obj(Json.parse(entry.body)) : null;
     }
 
     private static final HttpClient NO_REDIRECTS = HttpClient.newBuilder()

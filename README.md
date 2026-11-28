@@ -3,7 +3,7 @@
 A Minecraft 1.8.9 [Ornithe](https://ornithemc.net) mod that checks every installed mod for updates and can install them for you.
 
 - **Modrinth first.** Every jar in `mods` is looked up by its SHA-1 hash in one request, filtered to Ornithe/Fabric versions for your Minecraft version. It never offers an older version as an update.
-- **GitHub for the rest.** Mods that aren't on Modrinth are checked against the latest GitHub release of the repository linked in their `fabric.mod.json`.
+- **GitHub for the rest.** Mods that aren't on Modrinth are checked against the latest GitHub release of the repository linked in their `fabric.mod.json`. When that release is marked for another Minecraft version (like `2.4.0+26.3`), the newest recent release for yours is used instead.
 - **Safe installs.** Downloads are checked against their published hash, and must be a Fabric/Ornithe mod with the same mod id, so a wrong link or a Forge release can't replace your mod. Jars are swapped after the game closes, since Windows locks a running game's jars.
 - **Updates itself** the same way, from this repository's releases.
 - **Finds mod problems.** Several copies of one mod, and jars made for another loader (which Ornithe never loads), are listed with a button to move them out of `mods` into `removed-mods`. This replaces the Duplicate Mod Warning mod, which it offers to remove.
@@ -43,7 +43,7 @@ The mod copies itself to `config/modupdatechecker/prelaunch.jar` each time the g
 When Prism or OneClient started the game, the updates screen offers to add the command (**Set up**; also on the OneConfig page). Both launchers keep their settings in memory, so this happens when you close the game: the launcher is closed (force-closed if it doesn't close within a few seconds, unless it's still running another game), the command is added (with a backup of the file), and the launcher is opened again. An existing pre-launch command is never replaced.
 
 - **Prism:** the command goes in the instance's `instance.cfg`.
-- **OneClient:** the command goes in the global **Pre-Launch Command** (`settings.json`), which every cluster uses unless it has its own. It only runs `config/modupdatechecker/prelaunch.cmd` (`prelaunch.sh` on Linux and macOS) in clusters that have it, so clusters without this mod aren't affected. The mod writes that script each time the game starts, with the Java the cluster runs on. OneClient starts the game even if a pre-launch command fails, so the window has no **Quit** there.
+- **OneClient:** the command goes in the global **Pre-Launch Command** (`settings.json`), which every cluster uses unless it has its own. It runs `config/modupdatechecker/prelaunch.cmd` (`prelaunch.sh` on Linux and macOS) in the game folder, if there is one there; the mod writes that script each time the game starts, with the Java the cluster runs on. Most clusters share one game folder (`OneClient/.minecraft`), so the check reads which cluster is starting from the `.oneclient-global.json` OneClient writes there just before, checks that cluster's mods, and does nothing for clusters without this mod. OneClient starts the game even if a pre-launch command fails, so the window has no **Quit** there.
 
 ### Set up by hand
 
@@ -79,7 +79,9 @@ Fixing one moves the jars to `removed-mods`, next to `mods`, so they can be put 
 
 ## OneClient
 
-Works in Polyfrost's OneClient launcher too. OneClient keeps the mods in its bundles (HUD, QoL, Performance, Utility...) up to date itself, so those are left to it: any jar listed in one of OneClient's bundles for your Minecraft version (by hash, file name or Modrinth project) isn't checked or updated, and the summary says how many were left to OneClient. Every other mod in the cluster, the ones you added yourself, is checked and updated as usual.
+Works in Polyfrost's OneClient launcher too, including clusters that share OneClient's game folder (the mods are read from the cluster's own `mods`, which OneClient points Fabric at).
+
+Mods from OneClient's bundles (HUD, QoL, Performance, Utility...) are checked and updated like the rest, and labelled **OneClient bundle**. Updating one is safe: on the next launch OneClient notices the jar was replaced, keeps the new one, and switches the bundle's copy off as your choice, so its own bundle updates don't bring the old one back.
 
 OneClient links a cluster's mods to the files in its own store, so updates always replace a jar with a new file rather than writing into the old one.
 

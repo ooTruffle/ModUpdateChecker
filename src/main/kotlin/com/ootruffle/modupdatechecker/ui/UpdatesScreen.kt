@@ -587,7 +587,7 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
                         ModStatus.Source.MODRINTH -> "Modrinth"
                         ModStatus.Source.GITHUB -> "GitHub · ${mod.githubRepo}"
                         ModStatus.Source.NONE -> mod.jar.fileName.toString()
-                    }
+                    } + if (mod.oneClientBundle) " · OneClient bundle" else ""
                     Text(mod.error ?: where, color = if (mod.error != null) Red else TextSecondary, size = 12.sp)
                 }
                 Column(Modifier.widthIn(max = 170.dp), horizontalAlignment = Alignment.End) {

@@ -27,6 +27,10 @@ final class FabricEnv {
     static void install() {
         final FabricLoader loader = FabricLoader.getInstance();
         Env.gameDir = loader.getGameDir().toAbsolutePath().normalize();
+        final String modsFolder = System.getProperty("fabric.modsFolder");
+        if (modsFolder != null && !modsFolder.isBlank()) {
+            Env.modsDirOverride = Env.gameDir.resolve(modsFolder).toAbsolutePath().normalize();
+        }
         Env.inGame = true;
         Env.minecraftVersion = loader.getModContainer("minecraft")
                 .map(c -> c.getMetadata().getVersion().getFriendlyString()).orElse("1.8.9");

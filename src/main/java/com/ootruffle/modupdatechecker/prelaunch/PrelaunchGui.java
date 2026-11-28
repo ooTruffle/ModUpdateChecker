@@ -314,7 +314,8 @@ final class PrelaunchGui {
             text.setOpaque(false);
             text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
             text.add(label(mod.name, TEXT, font(Font.BOLD, 14f)));
-            final String where = mod.source == ModStatus.Source.MODRINTH ? "Modrinth" : "GitHub · " + mod.githubRepo;
+            final String where = (mod.source == ModStatus.Source.MODRINTH ? "Modrinth" : "GitHub · " + mod.githubRepo)
+                    + (mod.oneClientBundle ? " · OneClient bundle" : "");
             text.add(label(mod.version + "  →  " + mod.latestVersion + "    " + where, TEXT_SECONDARY, font(Font.PLAIN, 12f)));
             card.add(text, BorderLayout.CENTER);
             // Clicking the card toggles it too.

@@ -24,7 +24,8 @@ public final class ModRemover {
     private ModRemover() {}
 
     public static Path removedDir() {
-        return Env.gameDir.resolve("removed-mods");
+        final Path parent = Env.modsDir().toAbsolutePath().normalize().getParent();
+        return (parent != null ? parent : Env.gameDir).resolve("removed-mods");
     }
 
     public static boolean isRemoved(Path jar) {

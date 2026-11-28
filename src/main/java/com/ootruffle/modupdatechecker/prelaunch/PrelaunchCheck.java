@@ -6,6 +6,7 @@ import com.ootruffle.modupdatechecker.UpdateChecker;
 import com.ootruffle.modupdatechecker.core.Env;
 import com.ootruffle.modupdatechecker.core.JarScanner;
 import com.ootruffle.modupdatechecker.core.ModProblems;
+import com.ootruffle.modupdatechecker.core.OneClientLauncher;
 import com.ootruffle.modupdatechecker.install.Installer;
 import com.ootruffle.modupdatechecker.install.ModRemover;
 import java.nio.file.Files;
@@ -75,10 +76,24 @@ public final class PrelaunchCheck {
                 default -> System.out.println("[ModUpdateChecker] Ignoring unknown option " + args[i]);
             }
         }
-        if (gameDir == null) gameDir = findGameDir();
+        final boolean oneClient = !canCancel;
+        // OneClient runs the command in the game folder, which most clusters share.
+        if (gameDir == null) gameDir = oneClient ? Paths.get("").toAbsolutePath() : findGameDir();
         Env.gameDir = gameDir.toAbsolutePath().normalize();
         Env.scanner = JarScanner::scan;
         Env.verbose = verbose;
+        if (oneClient) {
+            final Path mods = OneClientLauncher.launchingModsDir(Env.gameDir);
+            if (mods == null) {
+                System.out.println("[ModUpdateChecker] Couldn't tell which OneClient cluster is starting; not checking.");
+                return true;
+            }
+            Env.modsDirOverride = mods;
+            // The command is OneClient's global one: clusters without this mod are left alone.
+            boolean here = false;
+            for (ModStatus m : JarScanner.scan()) here |= Env.MOD_ID.equals(m.id);
+            if (!here) return true;
+        }
         Config.load();
         final String mode = Config.get().prelaunchMode;
         if (Config.PRELAUNCH_OFF.equals(mode)) {

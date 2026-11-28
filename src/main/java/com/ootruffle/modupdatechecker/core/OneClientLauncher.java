@@ -14,12 +14,20 @@ import java.util.regex.Pattern;
  * OneClient support for the pre-launch check: finds out whether the game was started by OneClient,
  * and adds the check to OneClient's pre-launch command.
  * <p>
- * OneClient runs the pre-launch command with {@code cmd /C} (or {@code sh -c}) in the cluster's
- * folder and waits for it. It has no {@code $INST_...} variables, and quotes inside the command
- * don't survive how it's passed to cmd, so the command is a short relative one with no quotes:
- * it runs {@code config/modupdatechecker/prelaunch.cmd} (or {@code .sh}) if the cluster has one.
- * That script, written by the mod each time the game starts, holds the Java path and the jar.
- * Clusters without this mod have no script, so the command does nothing there.
+ * Where things are: OneClient's data folder holds {@code clusters/<name>} (each with its own
+ * {@code mods}), and most clusters run in one shared game folder, {@code <data>/.minecraft} (or
+ * {@code <data>/shared/<group>}), with Fabric pointed at the cluster's mods
+ * ({@code -Dfabric.modsFolder}). A cluster with a {@code .dedicated_directory} marker runs in its
+ * own folder instead.
+ * <p>
+ * OneClient runs the pre-launch command with {@code cmd /C} (or {@code sh -c}) in the game folder
+ * and waits for it. It has no {@code $INST_...} variables, and quotes inside the command don't
+ * survive how it's passed to cmd, so the command is a short relative one with no quotes: it runs
+ * {@code config/modupdatechecker/prelaunch.cmd} (or {@code .sh}) if the game folder has one. That
+ * script, written by the mod each time the game starts, holds the Java path and the jar. Game
+ * folders without this mod have no script, so the command does nothing there. In a shared folder
+ * the check works out which cluster is starting (see {@link #launchingModsDir}) and does nothing
+ * for clusters without this mod.
  * <p>
  * The command goes in the global game settings ({@code global_game_settings.hook_pre} in
  * {@code settings.json}), which every cluster uses unless it sets its own. OneClient keeps its
@@ -59,9 +67,86 @@ public final class OneClientLauncher {
         return windows() ? COMMAND_WINDOWS : COMMAND_UNIX;
     }
 
+    /**
+     * OneClient's data folder, from a cluster's mods folder ({@code <data>/clusters/<name>/mods})
+     * or a game folder ({@code <data>/.minecraft}, {@code <data>/shared/<group>} or a cluster's own
+     * folder). Null when neither is OneClient's.
+     */
+    public static Path dataDir(Path modsDir, Path gameDir) {
+        if (modsDir != null) {
+            final Path cluster = modsDir.toAbsolutePath().normalize().getParent();
+            final Path data = cluster == null ? null : parentIfNamed(cluster, "clusters");
+            if (isData(data)) return data;
+        }
+        if (gameDir != null) {
+            final Path game = gameDir.toAbsolutePath().normalize();
+            final boolean shared = game.getFileName() != null && game.getFileName().toString().equals(".minecraft");
+            for (Path data : new Path[] {shared ? game.getParent() : null, parentIfNamed(game, "shared"), parentIfNamed(game, "clusters")}) {
+                if (isData(data)) return data;
+            }
+        }
+        return null;
+    }
+
+    /** The grandparent of [dir] if its parent is called [name], else null. */
+    private static Path parentIfNamed(Path dir, String name) {
+        final Path parent = dir.getParent();
+        if (parent == null || parent.getFileName() == null || !parent.getFileName().toString().equalsIgnoreCase(name)) return null;
+        return parent.getParent();
+    }
+
+    private static boolean isData(Path data) {
+        return data != null && Files.isDirectory(data.resolve("clusters")) && Files.isDirectory(data.resolve("metadata"))
+                && Files.isRegularFile(data.resolve("settings.json"));
+    }
+
+    /**
+     * The mods folder of the cluster OneClient is starting in [gameDir] (the pre-launch command's
+     * folder), or null if that can't be told. A cluster's own folder has its mods in it. In a
+     * shared folder, OneClient writes {@code .oneclient-global.json} with the cluster's id before
+     * running the command, and each cluster folder has a {@code .oneclient-mods.json} with its id.
+     */
+    public static Path launchingModsDir(Path gameDir) {
+        final Path game = gameDir.toAbsolutePath().normalize();
+        final Path data = dataDir(null, game);
+        if (data == null) return null;
+        if (parentIfNamed(game, "clusters") != null) return game.resolve("mods");
+        final Long id = clusterId(game.resolve(".oneclient-global.json"));
+        Path newest = null;
+        long newestTime = 0;
+        try (java.nio.file.DirectoryStream<Path> clusters = Files.newDirectoryStream(data.resolve("clusters"))) {
+            for (Path cluster : clusters) {
+                final Path manifest = cluster.resolve(".oneclient-mods.json");
+                if (!Files.isRegularFile(manifest)) continue;
+                if (id != null && id.equals(clusterId(manifest))) return cluster.resolve("mods");
+                final long t = Files.getLastModifiedTime(manifest).toMillis();
+                if (t > newestTime) {
+                    newestTime = t;
+                    newest = cluster;
+                }
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        // No global manifest (nothing shared to put there): OneClient rewrote the starting
+        // cluster's own manifest moments ago, while getting the launch ready.
+        if (id == null && newest != null && System.currentTimeMillis() - newestTime < 120_000) return newest.resolve("mods");
+        return null;
+    }
+
+    private static Long clusterId(Path manifest) {
+        try {
+            if (!Files.isRegularFile(manifest)) return null;
+            final Object v = Json.obj(Json.parse(Files.readString(manifest, StandardCharsets.UTF_8))).get("cluster_id");
+            return v instanceof Double d ? d.longValue() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** Looks at the game's surroundings (call from the game). */
     public static Info detect() {
-        final Path data = OneClientBundles.dataDir(Env.gameDir);
+        final Path data = dataDir(Env.modsDir(), Env.gameDir);
         if (data == null) return none();
         final Path settings = data.resolve("settings.json");
         if (!Files.isRegularFile(settings)) return none();

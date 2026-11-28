@@ -47,6 +47,8 @@ public final class ModStatus {
     public volatile java.util.List<String> modrinthLoaders;
     public volatile java.util.List<String> modrinthGameVersions;
     public volatile String modrinthReleaseType;
+    /** In one of OneClient's bundles (HUD, QoL...). Shown on the row; it's still checked and updated. */
+    public volatile boolean oneClientBundle;
     /** The Modrinth project this jar was found in, or null. */
     public volatile String modrinthProjectId;
     public volatile String error;

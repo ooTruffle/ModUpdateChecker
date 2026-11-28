@@ -15,12 +15,12 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * The mods Polyfrost's OneClient launcher keeps up to date itself: the ones in its bundles (HUD,
- * QoL, Performance...). OneClient applies bundle updates when it launches the game, so updating one
- * of these here would leave two versions of it after OneClient's next update. Everything else in a
- * OneClient cluster (mods the player added) is checked as usual.
+ * The mods that come from Polyfrost's OneClient bundles (HUD, QoL, Performance...), so the
+ * updates screen can say so. They're still checked and updated: when a bundled jar is replaced,
+ * OneClient switches the bundle's copy off (as a deliberate choice, so bundle updates don't turn it
+ * back on) and keeps the new jar.
  * <p>
- * A cluster is {@code <data>/clusters/<name>}, and OneClient keeps each bundle as a Modrinth pack in
+ * OneClient keeps each bundle as a Modrinth pack in
  * {@code <data>/metadata/caches/bundles/bundles/*.mrpack}; its {@code modrinth.index.json} lists the
  * bundle's files with their SHA-1 hashes and download links.
  */
@@ -56,25 +56,14 @@ public final class OneClientBundles {
         return sha1.isEmpty();
     }
 
-    /** OneClient's data folder for a cluster's game folder, or null if it isn't one. */
-    public static Path dataDir(Path gameDir) {
-        final Path clusters = gameDir.toAbsolutePath().normalize().getParent();
-        if (clusters == null || clusters.getFileName() == null
-                || !clusters.getFileName().toString().equalsIgnoreCase("clusters")) return null;
-        final Path data = clusters.getParent();
-        if (data == null || !Files.isDirectory(bundlesDir(data))) return null;
-        return data;
-    }
-
     private static Path bundlesDir(Path data) {
         return data.resolve("metadata").resolve("caches").resolve("bundles").resolve("bundles");
     }
 
-    /** The bundled mods for this Minecraft version, or {@link #NONE}. Never throws. */
-    public static OneClientBundles load(Path gameDir, String minecraftVersion) {
+    /** The bundled mods for this Minecraft version, from OneClient's data folder (null: none). Never throws. */
+    public static OneClientBundles load(Path data, String minecraftVersion) {
         try {
-            final Path data = dataDir(gameDir);
-            if (data == null) return NONE;
+            if (data == null || !Files.isDirectory(bundlesDir(data))) return NONE;
             final Set<String> sha1 = new HashSet<>();
             final Set<String> names = new HashSet<>();
             final Set<String> projects = new HashSet<>();

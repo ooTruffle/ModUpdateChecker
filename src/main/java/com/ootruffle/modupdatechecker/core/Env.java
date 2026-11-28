@@ -21,6 +21,12 @@ public final class Env {
 
     public static volatile String minecraftVersion = "1.8.9";
 
+    /**
+     * The mods folder when it isn't {@code <gameDir>/mods}: Fabric's {@code fabric.modsFolder}
+     * (OneClient runs most clusters in one shared game folder and points each at its own mods).
+     */
+    public static volatile Path modsDirOverride;
+
     /** Running in the game (false before launch, in the pre-launch check). */
     public static volatile boolean inGame;
 
@@ -38,7 +44,8 @@ public final class Env {
     private Env() {}
 
     public static Path modsDir() {
-        return gameDir.resolve("mods");
+        final Path override = modsDirOverride;
+        return override != null ? override : gameDir.resolve("mods");
     }
 
     public static Path configDir() {
