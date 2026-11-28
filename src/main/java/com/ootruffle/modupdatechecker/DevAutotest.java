@@ -33,6 +33,7 @@ public final class DevAutotest {
     static void early() {
         if (!FabricLoader.getInstance().isDevelopmentEnvironment()) return;
         if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_PRISM"))) PrismIntegration.devShow = true;
+        if ("1".equals(System.getenv("MODUPDATECHECKER_AUTOTEST_ONECLIENT"))) OneClientIntegration.devShow = true;
     }
 
     public static void tick() {

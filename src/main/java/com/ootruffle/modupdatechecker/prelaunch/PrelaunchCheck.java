@@ -23,6 +23,12 @@ import java.util.List;
  * The mod copies itself to {@code prelaunch.jar} each time the game starts, so the command keeps
  * working when the mod updates (the game has to have been started once with the mod).
  * <p>
+ * The {@code prelaunchMode} setting in {@code config/modupdatechecker.json} decides what it does
+ * ({@code window}, {@code install}, {@code log} or {@code off}). With the default, {@code window},
+ * a mode option in the command ({@code --install}, or {@code --gui}) is used instead, so commands
+ * set up by hand keep working; any other setting wins over them. {@code --launcher oneclient} says OneClient started it: OneClient launches
+ * the game even when this fails, so the window has no Quit button there.
+ * <p>
  * Options: {@code --gui} opens a window listing the updates, and problems in the mods folder, to pick from (see {@link PrelaunchGui});
  * it closes by itself when there's nothing to update. {@code --install} swaps updates in straight away, after moving extra copies of a mod out (nothing holds the jars yet; without
  * it, updates are only listed in the launcher's log), {@code --game-dir <dir>} (default: Prism's
@@ -54,6 +60,7 @@ public final class PrelaunchCheck {
         boolean install = false;
         boolean gui = false;
         boolean verbose = false;
+        boolean canCancel = true;
         int timeout = 60;
         Path gameDir = null;
         for (int i = 0; i < args.length; i++) {
@@ -64,6 +71,7 @@ public final class PrelaunchCheck {
                 case "--game-dir" -> gameDir = Paths.get(args[++i]);
                 case "--timeout" -> timeout = Integer.parseInt(args[++i]);
                 case "--mc" -> Env.minecraftVersion = args[++i];
+                case "--launcher" -> canCancel = !"oneclient".equalsIgnoreCase(args[++i]);
                 default -> System.out.println("[ModUpdateChecker] Ignoring unknown option " + args[i]);
             }
         }
@@ -71,13 +79,24 @@ public final class PrelaunchCheck {
         Env.gameDir = gameDir.toAbsolutePath().normalize();
         Env.scanner = JarScanner::scan;
         Env.verbose = verbose;
-        System.out.println("[ModUpdateChecker] Checking " + Env.modsDir() + (install ? " (installing updates)" : ""));
         Config.load();
+        final String mode = Config.get().prelaunchMode;
+        if (Config.PRELAUNCH_OFF.equals(mode)) {
+            System.out.println("[ModUpdateChecker] Pre-launch check is off (prelaunchMode in config/modupdatechecker.json).");
+            return true;
+        }
+        if (!Config.PRELAUNCH_WINDOW.equals(mode)) {
+            gui = false;
+            install = Config.PRELAUNCH_INSTALL.equals(mode);
+        } else if (!install) {
+            gui = true;
+        }
+        System.out.println("[ModUpdateChecker] Checking " + Env.modsDir() + (install ? " (installing updates)" : ""));
 
         if (gui) {
             if (PrelaunchGui.available()) {
                 // The window waits for the player, so the timeout only covers the check itself.
-                final boolean launch = PrelaunchGui.run(timeout);
+                final boolean launch = PrelaunchGui.run(timeout, canCancel);
                 System.out.println("[ModUpdateChecker] " + UpdateChecker.summary().replace(" · ", ", "));
                 return launch;
             }
@@ -126,8 +145,8 @@ public final class PrelaunchCheck {
         System.out.println("[ModUpdateChecker] " + UpdateChecker.summary().replace(" · ", ", "));
         for (String line : report) System.out.println("[ModUpdateChecker] " + line);
         if ((!report.isEmpty() || !ModProblems.current().isEmpty()) && !doInstall) {
-            System.out.println("[ModUpdateChecker] Add --install (or --gui) to the pre-launch command to fix this before launching,"
-                    + " or use the Mod Updates screen in game.");
+            System.out.println("[ModUpdateChecker] Set prelaunchMode to \"window\" or \"install\" in config/modupdatechecker.json"
+                    + " to fix this before launching, or use the Mod Updates screen in game.");
         }
         return true;
     }

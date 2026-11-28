@@ -23,28 +23,49 @@ A Minecraft 1.8.9 [Ornithe](https://ornithemc.net) mod that checks every install
 - With OneConfig: a **Mod Update Checker** page (Utility, or `/modupdates`) with Open, Update All and Check Again, plus the settings.
 - The screen follows your GUI scale and, with OneConfig, its theme, accent colour, transparency and background blur.
 
-## Before launch (Prism Launcher)
+## Before launch (Prism Launcher and OneClient)
 
-The update check can also run before the game starts, as a pre-launch command. In Prism: **Edit instance → Settings → Custom commands**, tick the box, and set **Pre-launch command** to:
+The update check can also run before the game starts, as the launcher's pre-launch command. What it does is set by **Before launch** (`prelaunchMode` in the settings, the OneConfig page, or the **Before launch** chip on the updates screen once it's set up), so it can be changed without touching the launcher again:
 
-```
-"$INST_JAVA" -cp "$INST_MC_DIR/config/modupdatechecker/prelaunch.jar" com.ootruffle.modupdatechecker.prelaunch.PrelaunchCheck --gui
-```
-
-The mod copies itself to `config/modupdatechecker/prelaunch.jar` each time the game starts, so the command keeps working when it updates. Start the game once with the mod before adding it, or Prism will refuse to launch.
-
-`--gui` opens a window listing the updates to tick (**Changes** shows what's new in each), with **Update N & launch**, **Launch without updating** and **Quit** (which cancels the launch). Problems in the mods folder are listed above the updates (see [Mod problems](#mod-problems)). It closes by itself when there's nothing to update or fix. Other options:
-
-| Option | What it does |
+| `prelaunchMode` | What it does |
 | --- | --- |
-| *(none)* | Just lists updates in Prism's launch log |
-| `--install` | Installs every update without asking, after moving extra copies of a mod out |
-| `--verbose` | Lists every mod, not just updates |
-| `--timeout <s>` | Gives up on the check after this many seconds (default 60) |
+| `window` (default) | A window listing the updates to tick (**Changes** shows what's new in each), with **Update N & launch**, **Launch without updating** and, in Prism, **Quit** (which cancels the launch). Problems in the mods folder are listed above the updates (see [Mod problems](#mod-problems)). It closes by itself when there's nothing to update or fix |
+| `install` | Installs every update without asking, after moving extra copies of a mod out |
+| `log` | Just lists updates in the launcher's log |
+| `off` | Does nothing |
 
 Errors, being offline and running past the timeout never stop the launch; only **Quit** does.
 
-When the game was started by Prism, the in-game screen can also set this up for you (**Set up**). Prism keeps its settings in memory, so this happens when you close the game: Prism is closed (force-closed if it doesn't close within a few seconds, unless it's still running another game), the command is added to `instance.cfg` (with a backup), and Prism is opened again. An existing pre-launch command is never replaced.
+The mod copies itself to `config/modupdatechecker/prelaunch.jar` each time the game starts, so the command keeps working when it updates. Start the game once with the mod before adding the command.
+
+### Set up from the game
+
+When Prism or OneClient started the game, the updates screen offers to add the command (**Set up**; also on the OneConfig page). Both launchers keep their settings in memory, so this happens when you close the game: the launcher is closed (force-closed if it doesn't close within a few seconds, unless it's still running another game), the command is added (with a backup of the file), and the launcher is opened again. An existing pre-launch command is never replaced.
+
+- **Prism:** the command goes in the instance's `instance.cfg`.
+- **OneClient:** the command goes in the global **Pre-Launch Command** (`settings.json`), which every cluster uses unless it has its own. It only runs `config/modupdatechecker/prelaunch.cmd` (`prelaunch.sh` on Linux and macOS) in clusters that have it, so clusters without this mod aren't affected. The mod writes that script each time the game starts, with the Java the cluster runs on. OneClient starts the game even if a pre-launch command fails, so the window has no **Quit** there.
+
+### Set up by hand
+
+In Prism: **Edit instance → Settings → Custom commands**, tick the box, and set **Pre-launch command** to:
+
+```
+"$INST_JAVA" -cp "$INST_MC_DIR/config/modupdatechecker/prelaunch.jar" com.ootruffle.modupdatechecker.prelaunch.PrelaunchCheck
+```
+
+In OneClient: **Settings → Minecraft → Pre-Launch Command** (or a cluster's own settings), after starting the game once in a OneClient cluster with the mod:
+
+```
+if exist config\modupdatechecker\prelaunch.cmd config\modupdatechecker\prelaunch.cmd
+```
+
+Options for the command:
+
+| Option | What it does |
+| --- | --- |
+| `--gui` / `--install` | Same as `window` / `install`; used only while `prelaunchMode` is `window` (so older commands keep working) |
+| `--verbose` | Lists every mod, not just updates |
+| `--timeout <s>` | Gives up on the check after this many seconds (default 60) |
 
 ## Mod problems
 
@@ -76,6 +97,7 @@ OneClient links a cluster's mods to the files in its own store, so updates alway
 | `ignoredVersions` | `{}` | Mod id → the version you chose to skip |
 | `githubOverrides` | `{}` | Mod id → `"owner/repo"`, for mods that don't link their repository |
 | `skippedMods` | `[]` | Mod ids never checked |
+| `prelaunchMode` | `"window"` | What the pre-launch check does: `window`, `install`, `log` or `off` (see [Before launch](#before-launch-prism-launcher-and-oneclient)) |
 
 ### For mod authors
 

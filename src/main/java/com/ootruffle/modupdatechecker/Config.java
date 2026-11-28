@@ -43,6 +43,23 @@ public final class Config {
     /** "Not now" on the in-game offer to set up the pre-launch check in Prism. */
     public boolean prismPromptDismissed = false;
 
+    /** "Not now" on the in-game offer to set up the pre-launch check in OneClient. */
+    public boolean oneClientPromptDismissed = false;
+
+    /**
+     * What the pre-launch check does (see {@link com.ootruffle.modupdatechecker.prelaunch.PrelaunchCheck}):
+     * {@code window} shows the update window, {@code install} installs every update without asking,
+     * {@code log} only lists updates in the launcher's log, {@code off} skips it. With
+     * {@code window}, a mode option in the launcher's command ({@code --install}) is used instead.
+     */
+    public String prelaunchMode = PRELAUNCH_WINDOW;
+
+    public static final String PRELAUNCH_WINDOW = "window";
+    public static final String PRELAUNCH_INSTALL = "install";
+    public static final String PRELAUNCH_LOG = "log";
+    public static final String PRELAUNCH_OFF = "off";
+    public static final List<String> PRELAUNCH_MODES = List.of(PRELAUNCH_WINDOW, PRELAUNCH_INSTALL, PRELAUNCH_LOG, PRELAUNCH_OFF);
+
 
     private static Config instance = new Config();
 
@@ -77,6 +94,9 @@ public final class Config {
                     if (e.getValue() instanceof String s) c.githubOverrides.put(e.getKey(), s);
                 }
                 c.prismPromptDismissed = Json.bool(o, "prismPromptDismissed", false);
+                c.oneClientPromptDismissed = Json.bool(o, "oneClientPromptDismissed", false);
+                final String mode = Json.str(o, "prelaunchMode").toLowerCase(java.util.Locale.ROOT);
+                c.prelaunchMode = PRELAUNCH_MODES.contains(mode) ? mode : PRELAUNCH_WINDOW;
                 for (Object id : Json.arr(o, "skippedMods")) {
                     if (id instanceof String s) c.skippedMods.add(s);
                 }
@@ -99,7 +119,9 @@ public final class Config {
         o.put("ignoredVersions", c.ignoredVersions);
         o.put("githubOverrides", c.githubOverrides);
         o.put("skippedMods", c.skippedMods);
+        o.put("prelaunchMode", c.prelaunchMode);
         o.put("prismPromptDismissed", c.prismPromptDismissed);
+        o.put("oneClientPromptDismissed", c.oneClientPromptDismissed);
         final Path file = file();
         try {
             Files.createDirectories(file.getParent());

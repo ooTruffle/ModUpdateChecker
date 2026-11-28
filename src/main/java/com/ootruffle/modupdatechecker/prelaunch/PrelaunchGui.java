@@ -79,6 +79,8 @@ final class PrelaunchGui {
     private JButton updateButton;
     private JButton skipButton;
     private JButton quitButton;
+    /** Whether Quit can stop the launch (not in OneClient, which launches anyway). */
+    private boolean canCancel = true;
     private final List<Row> rows = new ArrayList<>();
     private final List<ProblemRow> problemRows = new ArrayList<>();
     private volatile boolean installing;
@@ -96,8 +98,9 @@ final class PrelaunchGui {
      * Shows the window, checks, and returns once the player has chosen (or there was nothing to
      * do). Returns false if they pressed Quit, so the game shouldn't launch.
      */
-    static boolean run(int timeoutSeconds) throws Exception {
+    static boolean run(int timeoutSeconds, boolean canCancel) throws Exception {
         final PrelaunchGui gui = new PrelaunchGui(timeoutSeconds);
+        gui.canCancel = canCancel;
         SwingUtilities.invokeAndWait(gui::build);
         final Thread check = new Thread(gui::check, "ModUpdateChecker-Check");
         check.setDaemon(true);
@@ -174,7 +177,7 @@ final class PrelaunchGui {
         updateButton.addActionListener(e -> installSelected());
         launch.add(skipButton);
         launch.add(updateButton);
-        footer.add(quitButton, BorderLayout.WEST);
+        if (canCancel) footer.add(quitButton, BorderLayout.WEST);
         footer.add(launch, BorderLayout.EAST);
         root.add(footer, BorderLayout.SOUTH);
 

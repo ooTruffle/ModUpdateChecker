@@ -52,7 +52,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ootruffle.modupdatechecker.Config
 import com.ootruffle.modupdatechecker.ModStatus
+import com.ootruffle.modupdatechecker.OneClientIntegration
 import com.ootruffle.modupdatechecker.PrismIntegration
+import com.ootruffle.modupdatechecker.core.OneClientLauncher
+import com.ootruffle.modupdatechecker.core.Prism
 import com.ootruffle.modupdatechecker.ModStatus.State
 import com.ootruffle.modupdatechecker.UpdateChecker
 import com.ootruffle.modupdatechecker.core.Env
@@ -336,17 +339,31 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
                 Button("Close") { close() }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 for (f in Filter.entries) {
                     if (f == Filter.PROBLEMS && problems == 0 && filter != f) continue
                     Chip("${f.label} (${counts[f] ?: 0})", filter == f) { filter = f }
+                }
+                if (prelaunchSetUp()) {
+                    Spacer(Modifier.weight(1f))
+                    // What the pre-launch check does; each click picks the next mode.
+                    val mode = Config.get().prelaunchMode
+                    Chip("Before launch: ${prelaunchLabel(mode)}", false) {
+                        val modes = Config.PRELAUNCH_MODES
+                        Config.get().prelaunchMode = modes[(modes.indexOf(mode) + 1) % modes.size]
+                        Config.save()
+                    }
                 }
             }
 
             if (problems > 0 && filter != Filter.PROBLEMS) {
                 ProblemsBanner(problems)
             } else if (PrismIntegration.offer() || PrismIntegration.requested()) {
-                PrismBanner()
+                LauncherBanner("Prism", "this Prism instance", PrismIntegration.requested(),
+                    { PrismIntegration.cancel() }, { PrismIntegration.dismiss() }, { PrismIntegration.request() })
+            } else if (OneClientIntegration.offer() || OneClientIntegration.requested()) {
+                LauncherBanner("OneClient", "your OneClient clusters with this mod", OneClientIntegration.requested(),
+                    { OneClientIntegration.cancel() }, { OneClientIntegration.dismiss() }, { OneClientIntegration.request() })
             }
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -499,11 +516,22 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
         }
     }
 
-    /** The opt-in to add the pre-launch check to this Prism instance (only shown under Prism). */
+    /** Whether a pre-launch check is (or is about to be) set up for this game. */
+    private fun prelaunchSetUp(): Boolean =
+        PrismIntegration.state() == Prism.State.CONFIGURED || PrismIntegration.requested()
+            || OneClientIntegration.state() == OneClientLauncher.State.CONFIGURED || OneClientIntegration.requested()
+
+    private fun prelaunchLabel(mode: String): String = when (mode) {
+        Config.PRELAUNCH_INSTALL -> "Install all"
+        Config.PRELAUNCH_LOG -> "Log only"
+        Config.PRELAUNCH_OFF -> "Off"
+        else -> "Update window"
+    }
+
+    /** The opt-in to add the pre-launch check to the launcher that started the game (Prism or OneClient). */
     @Composable
-    private fun PrismBanner() {
+    private fun LauncherBanner(launcher: String, place: String, requested: Boolean, onCancel: () -> Unit, onDismiss: () -> Unit, onSetUp: () -> Unit) {
         @Suppress("UNUSED_VARIABLE") val refresh = frame
-        val requested = PrismIntegration.requested()
         Row(
             Modifier.fillMaxWidth()
                 .clip(CardShape)
@@ -515,21 +543,21 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    if (requested) "Prism will restart when you close the game" else "Check for updates before the game starts?",
+                    if (requested) "$launcher will restart when you close the game" else "Check for updates before the game starts?",
                     size = 14.sp, weight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    if (requested) "Then this instance gets the pre-launch update window. Prism reopens by itself."
-                    else "Adds the pre-launch update window to this Prism instance. Prism closes and reopens once, when you close the game.",
+                    if (requested) "Then $place gets the pre-launch update check. $launcher reopens by itself."
+                    else "Adds the pre-launch update check to $place. $launcher closes and reopens once, when you close the game.",
                     color = TextSecondary, size = 12.sp, maxLines = 2,
                 )
             }
             if (requested) {
-                Button("Cancel") { PrismIntegration.cancel() }
+                Button("Cancel") { onCancel() }
             } else {
-                Button("Not now") { PrismIntegration.dismiss() }
-                Button("Set up", primary = true) { PrismIntegration.request() }
+                Button("Not now") { onDismiss() }
+                Button("Set up", primary = true) { onSetUp() }
             }
         }
     }

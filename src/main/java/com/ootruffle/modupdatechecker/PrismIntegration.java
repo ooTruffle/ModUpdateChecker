@@ -10,7 +10,7 @@ import java.util.Locale;
 
 /**
  * The opt-in "set up the pre-launch check in Prism" (see {@link Prism}). Only does anything when
- * the player asks: then, as the game closes, {@link com.ootruffle.modupdatechecker.install.PrismSetup}
+ * the player asks: then, as the game closes, {@link com.ootruffle.modupdatechecker.install.LauncherSetup}
  * is started to close Prism, add the command and reopen Prism.
  */
 public final class PrismIntegration {
@@ -88,7 +88,7 @@ public final class PrismIntegration {
             for (Path p : Env.selfPaths) parts.add(p.toString());
             if (parts.isEmpty()) throw new IllegalStateException("can't find this mod's jar");
             final ProcessBuilder pb = new ProcessBuilder(java, "-cp", String.join(System.getProperty("path.separator"), parts),
-                    "com.ootruffle.modupdatechecker.install.PrismSetup",
+                    "com.ootruffle.modupdatechecker.install.LauncherSetup", "prism",
                     Long.toString(ProcessHandle.current().pid()), Long.toString(i.prism().pid()), i.prismExe().toString(),
                     i.instanceCfg().toString(), i.globalCfg() == null ? "-" : i.globalCfg().toString());
             Files.createDirectories(Config.dir());

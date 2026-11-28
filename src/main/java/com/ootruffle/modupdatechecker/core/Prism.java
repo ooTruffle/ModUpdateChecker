@@ -15,13 +15,16 @@ import java.util.Optional;
  * <p>
  * Prism keeps its settings in memory and rewrites {@code instance.cfg} from them (after every game
  * session, to save the play time), so the file is only edited while Prism is closed (see
- * {@link com.ootruffle.modupdatechecker.install.PrismSetup}).
+ * {@link com.ootruffle.modupdatechecker.install.LauncherSetup}).
  */
 public final class Prism {
 
-    /** What the pre-launch command line in instance.cfg should be (Prism's ini quoting). */
+    /**
+     * What the pre-launch command line in instance.cfg should be (Prism's ini quoting). No mode
+     * option, so the {@code prelaunchMode} setting decides what it does.
+     */
     public static final String COMMAND = "\\\"$INST_JAVA\\\" -cp \\\"$INST_MC_DIR/config/modupdatechecker/prelaunch.jar\\\" "
-            + "com.ootruffle.modupdatechecker.prelaunch.PrelaunchCheck --gui";
+            + "com.ootruffle.modupdatechecker.prelaunch.PrelaunchCheck";
 
     public enum State {
         /** Not started by Prism (or the instance folder doesn't look like Prism's). */

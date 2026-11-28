@@ -32,6 +32,7 @@ public final class ModUpdateChecker implements ModInitializer {
         FabricEnv.install();
         Config.load();
         copyForPrelaunch();
+        OneClientIntegration.writeScript();
         Installer.init();
         DevAutotest.early();
         OneConfigCompat.init();

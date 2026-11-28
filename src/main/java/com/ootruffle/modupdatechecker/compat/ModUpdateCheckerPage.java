@@ -7,6 +7,7 @@ import com.ootruffle.modupdatechecker.UpdateChecker;
 import com.ootruffle.modupdatechecker.install.Installer;
 import org.polyfrost.oneconfig.api.commands.v1.CommandManager;
 import org.polyfrost.oneconfig.api.config.v1.annotations.Button;
+import org.polyfrost.oneconfig.api.config.v1.annotations.Dropdown;
 import org.polyfrost.oneconfig.api.config.v1.annotations.Slider;
 import org.polyfrost.oneconfig.api.config.v1.annotations.Switch;
 import org.polyfrost.oneconfig.api.notifications.v1.Notifications;
@@ -73,6 +74,25 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
         }
     }
 
+    @Button(title = "Pre-launch Check in OneClient", description = "Show the update window before the game starts. OneClient closes and reopens once, when you close the game, to add it.",
+            text = "Set up", subcategory = "Updates")
+    public void setUpOneClient() {
+        final String title = "Mod Update Checker";
+        switch (com.ootruffle.modupdatechecker.OneClientIntegration.state()) {
+            case CONFIGURED -> Notifications.info(title, "The pre-launch check is already set up in OneClient.");
+            case OTHER_COMMAND -> Notifications.warning(title, "OneClient already has a different pre-launch command, so it wasn't changed.");
+            case NOT_ONECLIENT -> Notifications.warning(title, "The game wasn't started by OneClient.");
+            case READY -> {
+                com.ootruffle.modupdatechecker.OneClientIntegration.request();
+                Notifications.success(title, "OneClient will close and reopen when you close the game, to add the pre-launch check.");
+            }
+        }
+    }
+
+    @Dropdown(title = "Before Launch", description = "What the pre-launch check does: show the update window, install every update without asking, only list updates in the launcher's log, or nothing.",
+            options = {"Update window", "Install all", "Log only", "Off"}, subcategory = "Settings")
+    public int prelaunchMode = 0;
+
     @Switch(title = "Check on Startup", description = "Look for updates when the game starts.", subcategory = "Settings")
     public boolean checkOnStartup = true;
 
@@ -88,9 +108,11 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
 
     private ModUpdateCheckerPage() {
         super("modupdatechecker-oneconfig.json", "Mod Update Checker", Category.UTILITY);
-        // Only offered when the game was started by Prism.
+        // Only offered in the launcher that started the game.
         hideIf("setUpPrism", () -> com.ootruffle.modupdatechecker.PrismIntegration.state()
                 == com.ootruffle.modupdatechecker.core.Prism.State.NOT_PRISM);
+        hideIf("setUpOneClient", () -> com.ootruffle.modupdatechecker.OneClientIntegration.state()
+                == com.ootruffle.modupdatechecker.core.OneClientLauncher.State.NOT_ONECLIENT);
     }
 
     static void init() {
@@ -100,9 +122,14 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
         INSTANCE.showMenuButton = c.showMenuButton;
         INSTANCE.checkModProblems = c.checkModProblems;
         INSTANCE.githubCacheMinutes = c.githubCacheMinutes;
+        INSTANCE.prelaunchMode = modeIndex(c.prelaunchMode);
         INSTANCE.preload();
         CommandManager.INSTANCE.register(ScreensKt.addDefaultCommand(INSTANCE, "modupdates"));
         sync();
+    }
+
+    private static int modeIndex(String mode) {
+        return Math.max(0, Config.PRELAUNCH_MODES.indexOf(mode));
     }
 
     static void devOpen() {
@@ -121,9 +148,10 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
     static void sync() {
         final Config c = Config.get();
         if (c.checkOnStartup == INSTANCE.checkOnStartup && c.showMenuButton == INSTANCE.showMenuButton && c.checkModProblems == INSTANCE.checkModProblems
-                && c.githubCacheMinutes == INSTANCE.githubCacheMinutes) {
+                && c.githubCacheMinutes == INSTANCE.githubCacheMinutes && modeIndex(c.prelaunchMode) == INSTANCE.prelaunchMode) {
             return;
         }
+        c.prelaunchMode = Config.PRELAUNCH_MODES.get(Math.max(0, Math.min(Config.PRELAUNCH_MODES.size() - 1, INSTANCE.prelaunchMode)));
         c.checkOnStartup = INSTANCE.checkOnStartup;
         c.showMenuButton = INSTANCE.showMenuButton;
         c.checkModProblems = INSTANCE.checkModProblems;
