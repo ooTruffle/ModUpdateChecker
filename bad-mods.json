@@ -11,6 +11,13 @@
       "sha1": ["bdcca3aabe60f0779372c84f4128698ad95a1414"],
       "files": ["(?i)velo[ _.+-]*client"],
       "reason": "A whole client bundled as a mod; it clashes with other mods and Ornithe"
+    },
+    {
+      "name": "LeafClient",
+      "id": "leafclient",
+      "sha1": ["2b36a85186448819aa2c3173bff0ddfc7d10bcd6"],
+      "files": ["(?i)leaf[ _.+-]*client"],
+      "reason": "A whole client bundled as a mod; it clashes with other mods and Ornithe"
     }
   ]
 }
