@@ -81,7 +81,7 @@ Fixing one moves the jars to `removed-mods`, next to `mods`, so they can be put 
 
 Works in Polyfrost's OneClient launcher too, including clusters that share OneClient's game folder (the mods are read from the cluster's own `mods`, which OneClient points Fabric at).
 
-Mods from OneClient's bundles (HUD, QoL, Performance, Utility...) are checked and updated like the rest, and labelled **OneClient bundle**. Updating one is safe: on the next launch OneClient notices the jar was replaced, keeps the new one, and switches the bundle's copy off as your choice, so its own bundle updates don't bring the old one back.
+Mods from OneClient's bundles (HUD, QoL, Performance, Utility...) are checked and updated like the rest, and labelled **OneClient bundle**. Updating one is safe: on the next launch OneClient notices the jar was replaced, keeps the new one, and switches the bundle's copy off as your choice, so its own bundle updates don't bring the old one back. OneClient tells you about it with a **Content disabled** notice saying the old versions are gone; that's expected, and both update windows say so above bundled updates.
 
 OneClient links a cluster's mods to the files in its own store, so updates always replace a jar with a new file rather than writing into the old one.
 

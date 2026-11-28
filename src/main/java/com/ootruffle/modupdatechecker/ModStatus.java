@@ -63,6 +63,14 @@ public final class ModStatus {
         this.githubRepo = githubRepo;
     }
 
+    /** What OneClient shows after a bundled mod is updated (both update windows say it). */
+    public static final String ONECLIENT_NOTE = "After updating, OneClient shows \"Content disabled\" for their old versions."
+            + " That's expected: it switches the bundle's copies off and keeps the new versions on.";
+
+    public static String oneClientNoteTitle(int updates) {
+        return (updates == 1 ? "1 update is" : updates + " updates are") + " for mods from OneClient's bundles.";
+    }
+
     /** Whether this update was skipped with "Ignore". */
     public boolean ignored() {
         final String skipped = Config.get().ignoredVersions.get(id);

@@ -356,6 +356,11 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
                 }
             }
 
+            val bundledUpdates = mods.count { it.oneClientBundle && it.wantsUpdate() && it.canDownload() }
+            if (bundledUpdates > 0 && filter != Filter.PROBLEMS) {
+                OneClientBundleNote(bundledUpdates)
+            }
+
             if (problems > 0 && filter != Filter.PROBLEMS) {
                 ProblemsBanner(problems)
             } else if (PrismIntegration.offer() || PrismIntegration.requested()) {
@@ -402,6 +407,22 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
     }
 
     /** Points to the Problems tab from the others. */
+    /** What OneClient shows after bundled mods are updated, so its notice isn't a surprise. */
+    @Composable
+    private fun OneClientBundleNote(count: Int) {
+        Column(
+            Modifier.fillMaxWidth()
+                .clip(CardShape)
+                .background(Yellow.copy(alpha = 0.10f))
+                .border(1.dp, Yellow.copy(alpha = 0.45f), CardShape)
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Text(ModStatus.oneClientNoteTitle(count), size = 13.sp, weight = FontWeight.SemiBold)
+            Spacer(Modifier.height(2.dp))
+            Text(ModStatus.ONECLIENT_NOTE, color = TextSecondary, size = 12.sp, maxLines = 2)
+        }
+    }
+
     @Composable
     private fun ProblemsBanner(count: Int) {
         Row(

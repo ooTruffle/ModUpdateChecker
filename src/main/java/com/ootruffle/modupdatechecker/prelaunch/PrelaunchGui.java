@@ -659,12 +659,25 @@ final class PrelaunchGui {
                 skipButton.setText(installable > 0 ? "Launch without changes" : "Launch without fixing");
                 addProblemRows(problems);
             }
+            int bundled = 0;
+            for (ModStatus m : updates) if (m.oneClientBundle && m.canDownload()) bundled++;
+            if (bundled > 0) addBundleNote(bundled);
             for (ModStatus m : updates) rows.add(new Row(m));
             list.revalidate();
             list.repaint();
             refreshButton();
             devTest();
         });
+    }
+
+    /** Says what OneClient shows after a bundled mod is updated, above the update rows. */
+    private void addBundleNote(int count) {
+        final JLabel note = new JLabel("<html>" + ModStatus.oneClientNoteTitle(count) + " " + ModStatus.ONECLIENT_NOTE + "</html>");
+        note.setForeground(YELLOW);
+        note.setFont(font(Font.PLAIN, 12f));
+        note.setBorder(BorderFactory.createEmptyBorder(2, 4, 10, 4));
+        note.setAlignmentX(Component.LEFT_ALIGNMENT);
+        list.add(note);
     }
 
     /**
