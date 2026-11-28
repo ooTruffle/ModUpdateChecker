@@ -18,6 +18,9 @@
   },
   "environment": "client",
   "entrypoints": {
+    "preLaunch": [
+      "${base_group}.QuitOnStart"
+    ],
     "init": [
       "${base_group}.ModUpdateChecker"
     ]

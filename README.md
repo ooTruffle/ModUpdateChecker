@@ -29,7 +29,7 @@ The update check can also run before the game starts, as the launcher's pre-laun
 
 | `prelaunchMode` | What it does |
 | --- | --- |
-| `window` (default) | A window listing the updates to tick (**Changes** shows what's new in each), with **Update N & launch**, **Launch without updating** and, in Prism, **Quit** (which cancels the launch). Problems in the mods folder are listed above the updates (see [Mod problems](#mod-problems)). It closes by itself when there's nothing to update or fix |
+| `window` (default) | A window listing the updates to tick (**Changes** shows what's new in each), with **Update N & launch**, **Launch without updating** and **Quit** (which cancels the launch). Problems in the mods folder are listed above the updates (see [Mod problems](#mod-problems)). It closes by itself when there's nothing to update or fix |
 | `install` | Installs every update without asking, after moving extra copies of a mod out |
 | `log` | Just lists updates in the launcher's log |
 | `off` | Does nothing |
@@ -43,7 +43,7 @@ The mod copies itself to `config/modupdatechecker/prelaunch.jar` each time the g
 When Prism or OneClient started the game, the updates screen offers to add the command (**Set up**; also on the OneConfig page). Both launchers keep their settings in memory, so this happens when you close the game: the launcher is closed (force-closed if it doesn't close within a few seconds, unless it's still running another game), the command is added (with a backup of the file), and the launcher is opened again. An existing pre-launch command is never replaced.
 
 - **Prism:** the command goes in the instance's `instance.cfg`.
-- **OneClient:** the command goes in the global **Pre-Launch Command** (`settings.json`), which every cluster uses unless it has its own. It runs `config/modupdatechecker/prelaunch.cmd` (`prelaunch.sh` on Linux and macOS) in the game folder, if there is one there; the mod writes that script each time the game starts, with the Java the cluster runs on. Most clusters share one game folder (`OneClient/.minecraft`), so the check reads which cluster is starting from the `.oneclient-global.json` OneClient writes there just before, checks that cluster's mods, and does nothing for clusters without this mod. OneClient starts the game even if a pre-launch command fails, so the window has no **Quit** there.
+- **OneClient:** the command goes in the global **Pre-Launch Command** (`settings.json`), which every cluster uses unless it has its own. It runs `config/modupdatechecker/prelaunch.cmd` (`prelaunch.sh` on Linux and macOS) in the game folder, if there is one there; the mod writes that script each time the game starts, with the Java the cluster runs on. Most clusters share one game folder (`OneClient/.minecraft`), so the check reads which cluster is starting from the `.oneclient-global.json` OneClient writes there just before, checks that cluster's mods, and does nothing for clusters without this mod. OneClient starts the game even if a pre-launch command fails, so there **Quit** leaves a note for the mod, which closes the game as soon as it starts, before Minecraft loads.
 
 ### Set up by hand
 

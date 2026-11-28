@@ -79,7 +79,7 @@ final class PrelaunchGui {
     private JButton updateButton;
     private JButton skipButton;
     private JButton quitButton;
-    /** Whether Quit can stop the launch (not in OneClient, which launches anyway). */
+    /** Whether Quit can stop the launch itself (not in OneClient, which launches anyway; the game then closes at once). */
     private boolean canCancel = true;
     private final List<Row> rows = new ArrayList<>();
     private final List<ProblemRow> problemRows = new ArrayList<>();
@@ -87,6 +87,37 @@ final class PrelaunchGui {
 
     private PrelaunchGui(int timeoutSeconds) {
         this.timeoutSeconds = timeoutSeconds;
+    }
+
+    /**
+     * The list of rows: always as wide as the window (rows never scroll sideways; long text is cut
+     * short with "..." instead), scrolling only up and down.
+     */
+    private static final class FitWidthPanel extends JPanel implements javax.swing.Scrollable {
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(java.awt.Rectangle visible, int orientation, int direction) {
+            return 16;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(java.awt.Rectangle visible, int orientation, int direction) {
+            return Math.max(16, visible.height - 32);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
+        }
     }
 
     /** Whether a window can be shown at all. */
@@ -147,7 +178,7 @@ final class PrelaunchGui {
         header.add(subtitle);
         root.add(header, BorderLayout.NORTH);
 
-        list = new JPanel();
+        list = new FitWidthPanel();
         list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
         list.setBackground(PAGE);
         final JScrollPane scroll = new JScrollPane(list);
@@ -163,7 +194,8 @@ final class PrelaunchGui {
         footer.setOpaque(false);
         quitButton = button("Quit", false);
         quitButton.setForeground(RED);
-        quitButton.setToolTipText("Don't update and don't start the game");
+        quitButton.setToolTipText(canCancel ? "Don't update and don't start the game"
+                : "Don't update; the game closes as soon as it starts (OneClient can't cancel a launch)");
         quitButton.addActionListener(e -> {
             quit = true;
             finish();
@@ -177,7 +209,7 @@ final class PrelaunchGui {
         updateButton.addActionListener(e -> installSelected());
         launch.add(skipButton);
         launch.add(updateButton);
-        if (canCancel) footer.add(quitButton, BorderLayout.WEST);
+        footer.add(quitButton, BorderLayout.WEST);
         footer.add(launch, BorderLayout.EAST);
         root.add(footer, BorderLayout.SOUTH);
 

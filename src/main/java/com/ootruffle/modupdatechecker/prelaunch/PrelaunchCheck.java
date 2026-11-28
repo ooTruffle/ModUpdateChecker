@@ -7,6 +7,7 @@ import com.ootruffle.modupdatechecker.core.Env;
 import com.ootruffle.modupdatechecker.core.JarScanner;
 import com.ootruffle.modupdatechecker.core.ModProblems;
 import com.ootruffle.modupdatechecker.core.OneClientLauncher;
+import com.ootruffle.modupdatechecker.core.QuitMarker;
 import com.ootruffle.modupdatechecker.install.Installer;
 import com.ootruffle.modupdatechecker.install.ModRemover;
 import java.nio.file.Files;
@@ -38,10 +39,15 @@ import java.util.List;
  * <p>
  * It exits with 0, so a failed check (offline, say) never stops the game from launching. The one
  * exception is the window's Quit button, which exits with 1 so the launcher cancels the launch.
+ * OneClient launches anyway, so there Quit leaves a {@link QuitMarker} instead (and exits with 0,
+ * so OneClient doesn't report a failed command): the mod then closes the game as it starts.
  */
 public final class PrelaunchCheck {
 
     private PrelaunchCheck() {}
+
+    /** Started by OneClient (--launcher oneclient). */
+    private static boolean oneClient;
 
     public static void main(String[] args) {
         boolean launch = true;
@@ -51,6 +57,14 @@ public final class PrelaunchCheck {
             System.out.println("[ModUpdateChecker] Pre-launch check failed: " + t);
         }
         if (!launch) System.out.println("[ModUpdateChecker] Quit chosen: not launching the game.");
+        if (!launch && oneClient) {
+            try {
+                QuitMarker.write(Env.gameDir, Env.modsDir());
+            } catch (Exception e) {
+                System.out.println("[ModUpdateChecker] Couldn't leave the quit marker: " + e);
+            }
+            launch = true;
+        }
         System.out.flush();
         // Only Quit stops the launch (launchers cancel it when a pre-launch command fails).
         System.exit(launch ? 0 : 1);
@@ -76,7 +90,7 @@ public final class PrelaunchCheck {
                 default -> System.out.println("[ModUpdateChecker] Ignoring unknown option " + args[i]);
             }
         }
-        final boolean oneClient = !canCancel;
+        oneClient = !canCancel;
         // OneClient runs the command in the game folder, which most clusters share.
         if (gameDir == null) gameDir = oneClient ? Paths.get("").toAbsolutePath() : findGameDir();
         Env.gameDir = gameDir.toAbsolutePath().normalize();
