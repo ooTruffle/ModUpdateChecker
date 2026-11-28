@@ -522,14 +522,40 @@ public final class UpdateChecker {
         }
     }
 
+    /** Loader and side words left out of a jar's base name. */
+    private static final List<String> NAME_NOISE = List.of("fabric", "ornithe", "legacy", "legacyfabric", "client", "universal", "all");
+
+    /**
+     * A jar's name without its version, Minecraft version and loader ("argentum-extras-1.1.0.jar"
+     * and "argentum-extras-1.0.3-beta.15.jar" are both "argentum-extras"), so the right jar can be
+     * told apart in a release that ships several mods.
+     */
+    static String baseName(String jarName) {
+        String name = jarName.toLowerCase(Locale.ROOT);
+        if (name.endsWith(".jar")) name = name.substring(0, name.length() - 4);
+        final StringBuilder out = new StringBuilder();
+        for (String part : name.split("[-_+ ]")) {
+            if (part.isEmpty()) continue;
+            // The version starts at the first part beginning with a digit (or "v1", "mc1.8.9").
+            if (part.matches("(v|mc)?\\d.*")) break;
+            if (NAME_NOISE.contains(part)) continue;
+            if (out.length() > 0) out.append('-');
+            out.append(part);
+        }
+        return out.toString();
+    }
+
     /** The release jar most like the installed one, or null if it's unclear which to take. */
-    private static Map<String, Object> pickAsset(List<Object> assets, String installedName) {
+    static Map<String, Object> pickAsset(List<Object> assets, String installedName) {
         final String installed = installedName.toLowerCase(Locale.ROOT);
+        final String installedBase = baseName(installed);
         final String mc = Env.minecraftVersion;
         Map<String, Object> best = null;
         int bestScore = Integer.MIN_VALUE;
         int jars = 0;
+        int baseMatches = 0;
         boolean bestHasMc = false;
+        boolean bestBaseMatch = false;
         for (Object e : assets) {
             final Map<String, Object> a = Json.obj(e);
             final String name = Json.str(a, "name").toLowerCase(Locale.ROOT);
@@ -537,8 +563,11 @@ public final class UpdateChecker {
             // Never offer a jar for another loader (repos often still carry old Forge releases).
             if (name.contains("forge") || name.contains("quilt")) continue;
             final boolean hasMc = name.contains(mc);
+            final boolean baseMatch = !installedBase.isEmpty() && installedBase.equals(baseName(name));
             jars++;
+            if (baseMatch) baseMatches++;
             int score = 0;
+            if (baseMatch) score += 8;
             if (hasMc) score += 4;
             if (installed.contains("ornithe") == name.contains("ornithe")) score += 2;
             if (installed.contains("fabric") == name.contains("fabric")) score += 1;
@@ -548,10 +577,14 @@ public final class UpdateChecker {
                 best = a;
                 bestScore = score;
                 bestHasMc = hasMc;
+                bestBaseMatch = baseMatch;
             }
         }
         if (jars == 1) return best;
-        return bestHasMc ? best : null;
+        if (bestHasMc) return best;
+        // Several jars, none naming a Minecraft version: fine when exactly one has the installed
+        // jar's name (a repo releasing several mods together, like argentum + argentum-extras).
+        return bestBaseMatch && baseMatches == 1 ? best : null;
     }
 
     private static Path cacheFile() {
