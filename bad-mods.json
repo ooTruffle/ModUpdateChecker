@@ -1,3 +1,9 @@
 {
-  "mods": []
+  "mods": [
+    {
+      "name": "Dawn Client",
+      "files": ["(?i)dawn[ _.+-]*client"],
+      "reason": "A whole client bundled as a mod; it clashes with other mods and Ornithe"
+    }
+  ]
 }
