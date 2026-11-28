@@ -5,6 +5,7 @@ A Minecraft 1.8.9 [Ornithe](https://ornithemc.net) mod that checks every install
 - **Modrinth first.** Every jar in `mods` is looked up by its SHA-1 hash in one request, filtered to Ornithe/Fabric versions for your Minecraft version. It never offers an older version as an update.
 - **GitHub for the rest.** Mods that aren't on Modrinth are checked against the latest GitHub release of the repository linked in their `fabric.mod.json`. When that release is marked for another Minecraft version (like `2.4.0+26.3`), the newest recent release for yours is used instead.
 - **Safe installs.** Downloads are checked against their published hash, and must be a Fabric/Ornithe mod with the same mod id, so a wrong link or a Forge release can't replace your mod. Jars are swapped after the game closes, since Windows locks a running game's jars.
+- **Auto-install (optional).** With `autoInstall` on (the **Auto-install** chip on the updates screen, or the OneConfig page), updates it's sure about go in without asking: full releases on Modrinth for your loader and Minecraft version, or GitHub files named for your Minecraft version, always with a published hash. Betas, alphas and anything less certain are still left for you. With a pre-launch check (Prism or OneClient) they're installed before the game starts; on any other launcher they're downloaded as the game starts and swapped in when it closes, ready for the next launch.
 - **Updates itself** the same way, from this repository's releases.
 - **Finds mod problems.** Several copies of one mod, and jars made for another loader (which Ornithe never loads), are listed with a button to move them out of `mods` into `removed-mods`. This replaces the Duplicate Mod Warning mod, which it offers to remove.
 - **Keeps Prism's metadata right.** In a Prism Launcher instance, a mod updated from Modrinth gets a `mods/.index/*.pw.toml` file for its new jar (replacing the old jar's), so Prism lists it as from Modrinth instead of "Unknown" and can update it itself.
@@ -28,6 +29,7 @@ A Minecraft 1.8.9 [Ornithe](https://ornithemc.net) mod that checks every install
 The update check can also run before the game starts, as the launcher's pre-launch command. What it does is set by **Before launch** (`prelaunchMode` in the settings, the OneConfig page, or the **Before launch** chip on the updates screen once it's set up), so it can be changed without touching the launcher again:
 
 | `prelaunchMode` | What it does |
+| `autoInstall` | `false` | Install updates it's sure about without asking (full Modrinth releases, or GitHub files named for your Minecraft version) |
 | --- | --- |
 | `window` (default) | A window listing the updates to tick (**Changes** shows what's new in each), with **Update N & launch**, **Launch without updating** and **Quit** (which cancels the launch). Problems in the mods folder are listed above the updates (see [Mod problems](#mod-problems)). It closes by itself when there's nothing to update or fix |
 | `install` | Installs every update without asking, after moving extra copies of a mod out |

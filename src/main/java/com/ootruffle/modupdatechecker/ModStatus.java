@@ -71,6 +71,21 @@ public final class ModStatus {
         return (updates == 1 ? "1 update is" : updates + " updates are") + " for mods from OneClient's bundles.";
     }
 
+    /**
+     * An update safe to install without asking (the {@code autoInstall} setting): not ignored, with
+     * a file whose hash is published, and either a full release on Modrinth (found by the jar's
+     * exact hash, for this loader and Minecraft version) or a GitHub file named for this Minecraft
+     * version. Betas, alphas and GitHub files that only might fit are left for the player.
+     */
+    public boolean sureUpdate() {
+        if (!wantsUpdate() || !canDownload() || downloadHash == null) return false;
+        if (source == Source.MODRINTH) return "release".equals(modrinthReleaseType);
+        if (source == Source.GITHUB) {
+            return downloadName.contains(com.ootruffle.modupdatechecker.core.Env.minecraftVersion);
+        }
+        return false;
+    }
+
     /** Whether this update was skipped with "Ignore". */
     public boolean ignored() {
         final String skipped = Config.get().ignoredVersions.get(id);

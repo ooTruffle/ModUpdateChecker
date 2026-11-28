@@ -54,6 +54,13 @@ public final class Config {
      */
     public String prelaunchMode = PRELAUNCH_WINDOW;
 
+    /**
+     * Install updates it's sure about (see {@link ModStatus#sureUpdate()}) without asking: before
+     * launch when a pre-launch check runs, otherwise downloaded as the game starts and swapped in
+     * when it closes, ready for the next launch.
+     */
+    public boolean autoInstall = false;
+
     public static final String PRELAUNCH_WINDOW = "window";
     public static final String PRELAUNCH_INSTALL = "install";
     public static final String PRELAUNCH_LOG = "log";
@@ -97,6 +104,7 @@ public final class Config {
                 c.oneClientPromptDismissed = Json.bool(o, "oneClientPromptDismissed", false);
                 final String mode = Json.str(o, "prelaunchMode").toLowerCase(java.util.Locale.ROOT);
                 c.prelaunchMode = PRELAUNCH_MODES.contains(mode) ? mode : PRELAUNCH_WINDOW;
+                c.autoInstall = Json.bool(o, "autoInstall", false);
                 for (Object id : Json.arr(o, "skippedMods")) {
                     if (id instanceof String s) c.skippedMods.add(s);
                 }
@@ -120,6 +128,7 @@ public final class Config {
         o.put("githubOverrides", c.githubOverrides);
         o.put("skippedMods", c.skippedMods);
         o.put("prelaunchMode", c.prelaunchMode);
+        o.put("autoInstall", c.autoInstall);
         o.put("prismPromptDismissed", c.prismPromptDismissed);
         o.put("oneClientPromptDismissed", c.oneClientPromptDismissed);
         final Path file = file();

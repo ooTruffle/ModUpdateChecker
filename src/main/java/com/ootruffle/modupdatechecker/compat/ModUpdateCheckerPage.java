@@ -93,6 +93,10 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
             options = {"Update window", "Install all", "Log only", "Off"}, subcategory = "Settings")
     public int prelaunchMode = 0;
 
+    @Switch(title = "Auto-install", description = "Install updates it's sure about (full releases with a checked file) without asking: before launch with a pre-launch check, otherwise when you close the game, ready for next time.",
+            subcategory = "Settings")
+    public boolean autoInstall = false;
+
     @Switch(title = "Check on Startup", description = "Look for updates when the game starts.", subcategory = "Settings")
     public boolean checkOnStartup = true;
 
@@ -123,6 +127,7 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
         INSTANCE.checkModProblems = c.checkModProblems;
         INSTANCE.githubCacheMinutes = c.githubCacheMinutes;
         INSTANCE.prelaunchMode = modeIndex(c.prelaunchMode);
+        INSTANCE.autoInstall = c.autoInstall;
         INSTANCE.preload();
         CommandManager.INSTANCE.register(ScreensKt.addDefaultCommand(INSTANCE, "modupdates"));
         sync();
@@ -148,11 +153,13 @@ public final class ModUpdateCheckerPage extends org.polyfrost.oneconfig.api.conf
     static void sync() {
         final Config c = Config.get();
         if (c.checkOnStartup == INSTANCE.checkOnStartup && c.showMenuButton == INSTANCE.showMenuButton && c.checkModProblems == INSTANCE.checkModProblems
-                && c.githubCacheMinutes == INSTANCE.githubCacheMinutes && modeIndex(c.prelaunchMode) == INSTANCE.prelaunchMode) {
+                && c.githubCacheMinutes == INSTANCE.githubCacheMinutes && modeIndex(c.prelaunchMode) == INSTANCE.prelaunchMode
+                && c.autoInstall == INSTANCE.autoInstall) {
             return;
         }
         c.prelaunchMode = Config.PRELAUNCH_MODES.get(Math.max(0, Math.min(Config.PRELAUNCH_MODES.size() - 1, INSTANCE.prelaunchMode)));
         c.checkOnStartup = INSTANCE.checkOnStartup;
+        c.autoInstall = INSTANCE.autoInstall;
         c.showMenuButton = INSTANCE.showMenuButton;
         c.checkModProblems = INSTANCE.checkModProblems;
         c.githubCacheMinutes = INSTANCE.githubCacheMinutes;

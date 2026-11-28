@@ -81,6 +81,26 @@ public final class ModUpdateChecker implements ModInitializer {
         openScreen = true;
     }
 
+    private static boolean autoInstallDone;
+
+    /**
+     * autoInstall in game: once the first check is done, downloads the updates it's sure about.
+     * They're swapped in when the game closes (Windows locks a running game's jars), so they're
+     * there for the next launch. A pre-launch check, when there is one, installs them before launch.
+     */
+    private static void autoInstall() {
+        if (autoInstallDone || UpdateChecker.running() || UpdateChecker.checkedAt() == 0) return;
+        autoInstallDone = true;
+        if (!Config.get().autoInstall) return;
+        int n = 0;
+        for (ModStatus m : UpdateChecker.mods()) {
+            if (!m.sureUpdate()) continue;
+            Installer.downloadAsync(m);
+            n++;
+        }
+        if (n > 0) LOGGER.info("Auto-install: downloading {} update{}; they're installed when the game closes", n, n == 1 ? "" : "s");
+    }
+
     /** Called at the end of every client tick. */
     public static void onClientTick() {
         if (openScreen) {
@@ -95,6 +115,7 @@ public final class ModUpdateChecker implements ModInitializer {
             final Minecraft mc = Minecraft.getMinecraft();
             mc.displayGuiScreen(UpdatesScreen.create(mc.currentScreen));
         }
+        autoInstall();
         OneConfigCompat.onClientTick();
         DevAutotest.tick();
     }

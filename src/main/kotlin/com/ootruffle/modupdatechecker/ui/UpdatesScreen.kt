@@ -344,8 +344,15 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
                     if (f == Filter.PROBLEMS && problems == 0 && filter != f) continue
                     Chip("${f.label} (${counts[f] ?: 0})", filter == f) { filter = f }
                 }
+                Spacer(Modifier.weight(1f))
+                // Installs the updates it's sure about without asking (see ModStatus.sureUpdate).
+                val auto = Config.get().autoInstall
+                Chip("Auto-install: ${if (auto) "On" else "Off"}", auto) {
+                    Config.get().autoInstall = !auto
+                    Config.save()
+                    if (!auto) for (m in mods) if (m.sureUpdate()) Installer.downloadAsync(m)
+                }
                 if (prelaunchSetUp()) {
-                    Spacer(Modifier.weight(1f))
                     // What the pre-launch check does; each click picks the next mode.
                     val mode = Config.get().prelaunchMode
                     Chip("Before launch: ${prelaunchLabel(mode)}", false) {

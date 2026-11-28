@@ -623,9 +623,34 @@ final class PrelaunchGui {
         }
         final boolean timedOut = worker.isAlive();
         final List<ModStatus> updates = new ArrayList<>();
+        // autoInstall: the updates it's sure about go in first, without asking; the rest are listed.
+        int autoInstalled = 0;
+        int autoFailed = 0;
+        int autoBundled = 0;
+        if (!timedOut && Config.get().autoInstall) {
+            final List<ModStatus> sure = new ArrayList<>();
+            for (ModStatus m : UpdateChecker.mods()) if (m.sureUpdate()) sure.add(m);
+            for (int i = 0; i < sure.size(); i++) {
+                final ModStatus m = sure.get(i);
+                final String doing = "Installing " + m.name + " " + m.latestVersion + " (" + (i + 1) + " of " + sure.size() + ")...";
+                SwingUtilities.invokeLater(() -> subtitle.setText(doing));
+                if (Installer.installNow(m)) {
+                    autoInstalled++;
+                    if (m.oneClientBundle) autoBundled++;
+                    System.out.println("[ModUpdateChecker]   " + m.name + " " + m.version + " -> " + m.latestVersion + ": installed automatically");
+                } else {
+                    autoFailed++;
+                    System.out.println("[ModUpdateChecker]   " + m.name + " " + m.latestVersion + ": " + m.error);
+                }
+            }
+        }
         if (!timedOut) {
             for (ModStatus m : UpdateChecker.mods()) if (m.wantsUpdate()) updates.add(m);
         }
+        final int autoBundledFinal = autoBundled;
+        final String auto = autoInstalled + autoFailed == 0 ? ""
+                : (autoInstalled == 1 ? "Installed 1 update" : "Installed " + autoInstalled + " updates") + " automatically"
+                + (autoFailed > 0 ? " (" + autoFailed + " couldn't be)" : "") + ". ";
         SwingUtilities.invokeLater(() -> {
             if (timedOut) {
                 subtitle.setText("The check took longer than " + timeoutSeconds + "s, so it was skipped.");
@@ -642,24 +667,25 @@ final class PrelaunchGui {
                     System.out.println("[ModUpdateChecker]   " + m.name + " " + m.version + " -> " + m.latestVersion
                             + ": no file to download, get it from " + m.pageUrl);
                 }
-                subtitle.setText(UpdateChecker.summary() + ". Launching...");
+                subtitle.setText(auto.isEmpty() ? UpdateChecker.summary() + ". Launching..." : auto + "Launching...");
                 final Timer t = new Timer(900, e -> finish());
                 t.setRepeats(false);
                 t.start();
                 return;
             }
             if (problems.isEmpty()) {
-                subtitle.setText(UpdateChecker.summary() + ". Pick what to update before the game starts.");
+                subtitle.setText(auto.isEmpty() ? UpdateChecker.summary() + ". Pick what to update before the game starts."
+                        : auto + "Pick what else to update before the game starts.");
             } else {
                 final int n = problemCount(problems);
-                subtitle.setText((n == 1 ? "1 problem in your mods folder" : n + " problems in your mods folder")
+                subtitle.setText(auto + (n == 1 ? "1 problem in your mods folder" : n + " problems in your mods folder")
                         + (installable > 0 ? " and " + installable + (installable == 1 ? " update" : " updates") : "")
                         + ". Pick what to fix before the game starts.");
                 subtitle.setForeground(YELLOW);
                 skipButton.setText(installable > 0 ? "Launch without changes" : "Launch without fixing");
                 addProblemRows(problems);
             }
-            int bundled = 0;
+            int bundled = autoBundledFinal;
             for (ModStatus m : updates) if (m.oneClientBundle && m.canDownload()) bundled++;
             if (bundled > 0) addBundleNote(bundled);
             for (ModStatus m : updates) rows.add(new Row(m));

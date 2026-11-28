@@ -153,7 +153,7 @@ public final class PrelaunchCheck {
                         + " (" + (m.source == ModStatus.Source.MODRINTH ? "Modrinth" : "GitHub") + ")";
                 if (!m.canDownload()) {
                     report.add(line + ": no file to download, get it from " + m.pageUrl);
-                } else if (!doInstall) {
+                } else if (!doInstall && !(Config.get().autoInstall && m.sureUpdate())) {
                     report.add(line);
                 } else if (Installer.installNow(m)) {
                     report.add(line + ": installed");
