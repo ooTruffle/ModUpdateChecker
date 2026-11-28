@@ -71,7 +71,14 @@ final class FabricEnv {
             if (!jar.startsWith(modsDir) || !Files.isRegularFile(jar)
                     || !jar.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".jar")) continue;
             if (byJar.containsKey(jar)) continue;
-            byJar.put(jar, new ModStatus(meta.getId(), meta.getName(), meta.getVersion().getFriendlyString(), jar, githubRepo(meta)));
+            final ModStatus mod = new ModStatus(meta.getId(), meta.getName(), meta.getVersion().getFriendlyString(), jar, githubRepo(meta));
+            final List<String> authors = new ArrayList<>();
+            try {
+                for (net.fabricmc.loader.api.metadata.Person p : meta.getAuthors()) authors.add(p.getName());
+            } catch (Throwable ignored) {
+            }
+            mod.repoGuesses = UpdateChecker.repoGuesses(meta.getId(), meta.getName(), authors);
+            byJar.put(jar, mod);
         }
         return new ArrayList<>(byJar.values());
     }

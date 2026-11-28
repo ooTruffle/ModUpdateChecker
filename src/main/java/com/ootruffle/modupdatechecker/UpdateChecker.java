@@ -234,6 +234,28 @@ public final class UpdateChecker {
         return null;
     }
 
+    private static final Pattern GITHUB_NAME = Pattern.compile("[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})");
+
+    /**
+     * Repos a mod with no GitHub link might live at: each author (that could be a GitHub user)
+     * with the mod's name (spaces left out) and its id, as in "ooTruffle/ClientTag".
+     */
+    public static List<String> repoGuesses(String id, String name, List<String> authors) {
+        final java.util.LinkedHashSet<String> repos = new java.util.LinkedHashSet<>();
+        int owners = 0;
+        for (String author : authors) {
+            if (author == null || !GITHUB_NAME.matcher(author.trim()).matches()) continue;
+            if (++owners > 2) break;
+            for (String repo : new String[] {name == null ? "" : name.replace(" ", ""), id}) {
+                if (repo != null && repo.matches("[A-Za-z0-9_.-]+")) repos.add(author.trim() + "/" + repo);
+            }
+        }
+        // GitHub's names don't care about case, so "a/ClientTag" and "a/clienttag" are one repo.
+        final java.util.Map<String, String> unique = new java.util.LinkedHashMap<>();
+        for (String r : repos) unique.putIfAbsent(r.toLowerCase(Locale.ROOT), r);
+        return new ArrayList<>(unique.values());
+    }
+
     // ---- Modrinth ----
 
     private static void modrinth(Map<String, ModStatus> byHash) throws Exception {
@@ -344,6 +366,16 @@ public final class UpdateChecker {
     }
 
     private static void github(ModStatus m, Map<String, CacheEntry> cache) throws Exception {
+        if (m.githubRepo == null) {
+            // No link: try the author's repos named after the mod; only one with releases counts.
+            for (String guess : m.repoGuesses) {
+                final String tag = latestTag(guess);
+                if (tag != null && !tag.isEmpty()) {
+                    m.githubRepo = guess;
+                    break;
+                }
+            }
+        }
         if (m.githubRepo == null) {
             m.state = ModStatus.State.NOT_FOUND;
             return;

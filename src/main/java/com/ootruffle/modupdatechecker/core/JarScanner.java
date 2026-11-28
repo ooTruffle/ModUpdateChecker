@@ -84,7 +84,14 @@ public final class JarScanner {
             }
             final Object custom = Json.obj(Json.obj(o, "custom"), Env.MOD_ID).get("github");
             final String repo = UpdateChecker.githubRepo(id, custom instanceof String s ? s : null, contact);
-            return new ModStatus(id, name, Json.str(o, "version"), jar.toAbsolutePath().normalize(), repo);
+            final ModStatus mod = new ModStatus(id, name, Json.str(o, "version"), jar.toAbsolutePath().normalize(), repo);
+            final List<String> authors = new ArrayList<>();
+            for (Object a : Json.arr(o, "authors")) {
+                if (a instanceof String s) authors.add(s);
+                else authors.add(Json.str(Json.obj(a), "name"));
+            }
+            mod.repoGuesses = UpdateChecker.repoGuesses(id, name, authors);
+            return mod;
         }
     }
 }

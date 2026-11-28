@@ -29,8 +29,10 @@ public final class ModStatus {
     public final String name;
     public final String version;
     public final Path jar;
-    /** "owner/repo" or null. */
-    public final String githubRepo;
+    /** "owner/repo" or null. Set by the checker when it was found from {@link #repoGuesses}. */
+    public volatile String githubRepo;
+    /** Repos to try when none is linked ("author/name"), from its authors, name and id. */
+    public volatile java.util.List<String> repoGuesses = java.util.List.of();
 
     public volatile Source source = Source.NONE;
     public volatile State state = State.CHECKING;
