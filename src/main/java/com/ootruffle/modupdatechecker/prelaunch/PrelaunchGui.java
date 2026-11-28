@@ -498,6 +498,10 @@ final class PrelaunchGui {
 
     /** One row per problem the last scan found. */
     private void addProblemRows(ModProblems.Result result) {
+        for (ModProblems.Bad b : result.bad) {
+            problemRows.add(new ProblemRow(b.entry.name + " is on the bad mods list",
+                    b.entry.reason + ". Removes " + b.jar.fileName(), List.of(b.jar), true));
+        }
         for (ModProblems.Jar j : result.replaced) {
             final String name = ModProblems.REPLACED.getOrDefault(j.id, j.label());
             problemRows.add(new ProblemRow(name + " isn't needed any more",
@@ -773,7 +777,7 @@ final class PrelaunchGui {
     }
 
     private static int problemCount(ModProblems.Result r) {
-        return r.duplicates.size() + r.replaced.size() + (r.otherLoaders.isEmpty() ? 0 : 1);
+        return r.bad.size() + r.duplicates.size() + r.replaced.size() + (r.otherLoaders.isEmpty() ? 0 : 1);
     }
 
     private void installSelected() {

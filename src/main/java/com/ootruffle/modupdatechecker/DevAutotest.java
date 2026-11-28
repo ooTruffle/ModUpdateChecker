@@ -71,6 +71,7 @@ public final class DevAutotest {
                     final var jars = new java.util.ArrayList<>(com.ootruffle.modupdatechecker.install.ModRemover.extraCopies(problems, true));
                     jars.addAll(problems.otherLoaders);
                     jars.addAll(problems.replaced);
+                    jars.addAll(problems.badJars());
                     com.ootruffle.modupdatechecker.install.ModRemover.removeAll(jars);
                     step = 4;
                     wait = 40;

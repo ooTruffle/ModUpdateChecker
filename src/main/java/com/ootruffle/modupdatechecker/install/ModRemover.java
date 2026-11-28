@@ -62,7 +62,7 @@ public final class ModRemover {
     /** How many problems the last scan found that aren't dealt with yet (one per duplicated mod). */
     public static int problemCount() {
         final ModProblems.Result r = ModProblems.current();
-        int n = remaining(r.otherLoaders).size() + remaining(r.replaced).size();
+        int n = remaining(r.otherLoaders).size() + remaining(r.replaced).size() + remaining(r.badJars()).size();
         for (ModProblems.Group g : r.duplicates) if (!remaining(g.extra()).isEmpty()) n++;
         return n;
     }

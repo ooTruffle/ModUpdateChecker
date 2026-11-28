@@ -7,7 +7,7 @@ A Minecraft 1.8.9 [Ornithe](https://ornithemc.net) mod that checks every install
 - **Safe installs.** Downloads are checked against their published hash, and must be a Fabric/Ornithe mod with the same mod id, so a wrong link or a Forge release can't replace your mod. Jars are swapped after the game closes, since Windows locks a running game's jars.
 - **Auto-install (optional).** With `autoInstall` on (the **Auto-install** chip on the updates screen, or the OneConfig page), updates it's sure about go in without asking: full releases on Modrinth for your loader and Minecraft version, or GitHub files named for your Minecraft version, always with a published hash. Betas, alphas and anything less certain are still left for you. With a pre-launch check (Prism or OneClient) they're installed before the game starts; on any other launcher they're downloaded as the game starts and swapped in when it closes, ready for the next launch.
 - **Updates itself** the same way, from this repository's releases.
-- **Finds mod problems.** Several copies of one mod, and jars made for another loader (which Ornithe never loads), are listed with a button to move them out of `mods` into `removed-mods`. This replaces the Duplicate Mod Warning mod, which it offers to remove.
+- **Finds mod problems.** Several copies of one mod, jars made for another loader (which Ornithe never loads), and mods on a [bad mods list](#the-bad-mods-list) kept in this repository are listed with a button to move them out of `mods` into `removed-mods`. This replaces the Duplicate Mod Warning mod, which it offers to remove.
 - **Keeps Prism's metadata right.** In a Prism Launcher instance, a mod updated from Modrinth gets a `mods/.index/*.pw.toml` file for its new jar (replacing the old jar's), so Prism lists it as from Modrinth instead of "Unknown" and can update it itself.
 
 ## Requirements
@@ -76,6 +76,27 @@ Every jar in `mods` is read and hashed, and these are reported:
 - **Duplicates:** jars with the same file hash, the same mod id, or the same name. The highest version is kept (for identical copies, the one not named like a copy, such as `mod (1).jar`). Jars that only share a name are flagged to check first, since they have different mod ids.
 - **Other loaders:** Forge, NeoForge, Quilt, LiteLoader, Rift and LabyMod jars, which Ornithe never loads.
 - **Duplicate Mod Warning,** which isn't needed next to this mod.
+- **Bad mods:** jars on the [bad mods list](bad-mods.json) (malware, or mods that are broken or get you banned), with the reason and a **More info** link. The list is fetched from this repository (at most every 30 minutes), and the last copy is kept in `config/modupdatechecker/bad-mods.json` for when you're offline. They're ticked for removal in the pre-launch window; `--install` only lists them.
+
+### The bad mods list
+
+[`bad-mods.json`](bad-mods.json) on `main` is read by every copy of the mod, so a change there reaches players without a release. Each entry matches by any of `sha1` (exact files), `id` (with `versions` to flag only some versions; leave it out to flag them all) or `files` (regexes on the file name, for jars without metadata):
+
+```json
+{
+  "mods": [
+    {
+      "name": "Example Mod",
+      "id": "examplemod",
+      "versions": ["1.0.0"],
+      "sha1": ["da39a3ee5e6b4b0d3255bfef95601890afd80709"],
+      "files": ["(?i)^example-loader.*\.jar$"],
+      "reason": "Steals your session token",
+      "url": "https://example.com/more-info"
+    }
+  ]
+}
+```
 
 Fixing one moves the jars to `removed-mods`, next to `mods`, so they can be put back. In game, a jar the game has open is moved when it closes; restart for the change to apply. In the pre-launch window, problems get ticked rows above the updates (extra copies are ticked, name-only matches and other-loader jars aren't) and are fixed before any update is installed. `--install` also moves extra copies (same hash or mod id) and Duplicate Mod Warning out; the rest is only listed.
 

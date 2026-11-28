@@ -444,7 +444,11 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
             Column(Modifier.weight(1f)) {
                 Text(if (count == 1) "1 problem in your mods folder" else "$count problems in your mods folder", size = 14.sp, weight = FontWeight.SemiBold)
                 Spacer(Modifier.height(2.dp))
-                Text("Duplicate copies of a mod, or jars that can't be loaded.", color = TextSecondary, size = 12.sp)
+                Text(
+                    if (ModRemover.remaining(ModProblems.current().badJars()).isNotEmpty()) "Includes mods on the bad mods list: remove them."
+                    else "Duplicate copies of a mod, or jars that can't be loaded.",
+                    color = TextSecondary, size = 12.sp,
+                )
             }
             Button("Show", primary = true) { filter = Filter.PROBLEMS }
         }
@@ -465,7 +469,7 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
         }
     }
 
-    /** Duplicate mods, mods for other loaders and mods this one replaces, each with a fix. */
+    /** Bad mods, duplicate mods, mods for other loaders and mods this one replaces, each with a fix. */
     @Composable
     private fun ProblemsList(count: Int) {
         @Suppress("UNUSED_VARIABLE") val refresh = frame
@@ -484,6 +488,17 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
                 }
             }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (bad in result.bad) {
+                    if (ModRemover.remaining(listOf(bad.jar)).isEmpty()) continue
+                    item(key = "bad:" + bad.jar.path) {
+                        ProblemCard(
+                            "${bad.entry.name} is on the bad mods list",
+                            listOf(bad.entry.reason to Red, bad.jar.describe() to TextSecondary),
+                            "Remove it",
+                            link = bad.entry.url,
+                        ) { removed(listOf(bad.jar)) }
+                    }
+                }
                 for (jar in ModRemover.remaining(result.replaced)) {
                     item(key = "replaced:" + jar.path) {
                         val name = ModProblems.REPLACED[jar.id] ?: jar.label()
@@ -526,7 +541,7 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
     }
 
     @Composable
-    private fun ProblemCard(title: String, lines: List<Pair<String, Color>>, action: String, onClick: () -> Unit) {
+    private fun ProblemCard(title: String, lines: List<Pair<String, Color>>, action: String, link: String? = null, onClick: () -> Unit) {
         Row(
             Modifier.fillMaxWidth()
                 .clip(CardShape)
@@ -540,6 +555,7 @@ class UpdatesComposeScreen(private val parent: GuiScreen?) : ComposeScreen(Compo
                 Text(title, size = 15.sp, weight = FontWeight.SemiBold)
                 for ((text, color) in lines) Text(text, color = color, size = 12.sp)
             }
+            link?.let { url -> Button("More info") { openUrl(url) } }
             Button(action) { onClick() }
         }
     }

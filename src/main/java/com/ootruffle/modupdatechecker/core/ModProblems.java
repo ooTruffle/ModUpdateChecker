@@ -20,7 +20,8 @@ import java.util.zip.ZipEntry;
 
 /**
  * Problems in the mods folder (what Duplicate Mod Warning used to find): several copies of one mod,
- * jars made for another loader (Ornithe never loads them), and mods this one replaces. Only uses
+ * jars made for another loader (Ornithe never loads them), mods this one replaces, and mods on the
+ * {@link BadMods bad mods list}. Only uses
  * the JDK, so the pre-launch check finds them too, and can move them out before anything locks them.
  */
 public final class ModProblems {
@@ -86,20 +87,41 @@ public final class ModProblems {
         }
     }
 
+    /** A jar on the bad mods list, and why it's there. */
+    public static final class Bad {
+        public final Jar jar;
+        public final BadMods.Entry entry;
+
+        Bad(Jar jar, BadMods.Entry entry) {
+            this.jar = jar;
+            this.entry = entry;
+        }
+    }
+
     public static final class Result {
         public final List<Group> duplicates;
         public final List<Jar> otherLoaders;
         /** Installed mods that this one replaces. */
         public final List<Jar> replaced;
+        /** Installed mods on the bad mods list. */
+        public final List<Bad> bad;
 
-        Result(List<Group> duplicates, List<Jar> otherLoaders, List<Jar> replaced) {
+        Result(List<Group> duplicates, List<Jar> otherLoaders, List<Jar> replaced, List<Bad> bad) {
             this.duplicates = duplicates;
             this.otherLoaders = otherLoaders;
             this.replaced = replaced;
+            this.bad = bad;
         }
 
         public boolean isEmpty() {
-            return duplicates.isEmpty() && otherLoaders.isEmpty() && replaced.isEmpty();
+            return duplicates.isEmpty() && otherLoaders.isEmpty() && replaced.isEmpty() && bad.isEmpty();
+        }
+
+        /** The bad jars' files. */
+        public List<Jar> badJars() {
+            final List<Jar> out = new ArrayList<>();
+            for (Bad b : bad) out.add(b.jar);
+            return out;
         }
 
         /** The copy kept in place of [jar], if [jar] is an extra copy of a mod; else null. */
@@ -111,7 +133,7 @@ public final class ModProblems {
         }
     }
 
-    private static final Result EMPTY = new Result(List.of(), List.of(), List.of());
+    private static final Result EMPTY = new Result(List.of(), List.of(), List.of(), List.of());
     private static volatile Result current = EMPTY;
 
     private ModProblems() {}
@@ -133,6 +155,8 @@ public final class ModProblems {
         final List<Jar> mods = new ArrayList<>();
         final List<Jar> other = new ArrayList<>();
         final List<Jar> replaced = new ArrayList<>();
+        final List<Bad> bad = new ArrayList<>();
+        final List<BadMods.Entry> badList = BadMods.list();
         if (Files.isDirectory(dir)) {
             try (var files = Files.list(dir)) {
                 for (Path f : (Iterable<Path>) files::iterator) {
@@ -140,6 +164,8 @@ public final class ModProblems {
                     if (!Files.isRegularFile(f) || !(lower.endsWith(".jar") || lower.endsWith(".zip"))) continue;
                     final Jar jar = read(f.toAbsolutePath().normalize());
                     if (jar == null) continue;
+                    final BadMods.Entry entry = BadMods.match(badList, jar.id, jar.version, jar.hash, jar.fileName());
+                    if (entry != null) bad.add(new Bad(jar, entry));
                     if (jar.otherLoader != null) other.add(jar);
                     else if (jar.id != null && REPLACED.containsKey(jar.id)) replaced.add(jar);
                     else if (jar.id == null || !BUILTIN.contains(jar.id)) mods.add(jar);
@@ -149,7 +175,8 @@ public final class ModProblems {
             }
         }
         other.sort(Comparator.comparing(j -> j.fileName().toLowerCase(Locale.ROOT)));
-        final Result result = new Result(group(mods), other, replaced);
+        bad.sort(Comparator.comparing(b -> b.jar.fileName().toLowerCase(Locale.ROOT)));
+        final Result result = new Result(group(mods), other, replaced, bad);
         current = result;
         return result;
     }
@@ -304,6 +331,9 @@ public final class ModProblems {
 
     /** Logs what [result] found (the pre-launch check's output, and the game log). */
     public static void log(Result result) {
+        for (Bad b : result.bad) {
+            Env.log.warn("{} ({}) is on the bad mods list: {}{}", b.jar.fileName(), b.entry.name, b.entry.reason, b.entry.url != null ? " (" + b.entry.url + ")" : "");
+        }
         for (Group g : result.duplicates) {
             Env.log.warn("{} is installed {} times{}:", g.name, g.jars.size(), g.identical ? " (identical copies)" : "");
             for (int i = 0; i < g.jars.size(); i++) {
