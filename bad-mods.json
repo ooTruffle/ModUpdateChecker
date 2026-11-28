@@ -4,6 +4,13 @@
       "name": "Dawn Client",
       "files": ["(?i)dawn[ _.+-]*client"],
       "reason": "A whole client bundled as a mod; it clashes with other mods and Ornithe"
+    },
+    {
+      "name": "Velo Client",
+      "id": "velo-client",
+      "sha1": ["bdcca3aabe60f0779372c84f4128698ad95a1414"],
+      "files": ["(?i)velo[ _.+-]*client"],
+      "reason": "A whole client bundled as a mod; it clashes with other mods and Ornithe"
     }
   ]
 }
